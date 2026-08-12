@@ -52,15 +52,18 @@ def run_scan_thread(docx_path, output_path, status_var, progress_var, start_btn)
     # 1. We MUST initialize COM for this specific background thread
     pythoncom.CoInitialize() 
 
-    status_var.set("Running approved rule regression tests...")
-    progress_var.set(0)
-
-    run_regression_gate()
-
-    status_var.set("Regression tests passed. Launching Word...")
-    progress_var.set(5)
+    word = None
+    doc = None
     
     try:
+        status_var.set("Running approved rule regression tests...")
+        progress_var.set(0)
+
+        run_regression_gate()
+
+        status_var.set("Regression tests passed. Launching Word...")
+        progress_var.set(5)
+
         abs_input = os.path.abspath(docx_path)
         abs_output = os.path.abspath(output_path)
         
@@ -95,7 +98,13 @@ def run_scan_thread(docx_path, output_path, status_var, progress_var, start_btn)
                     
             status_var.set("Step 2/3: Executing Vale style scan...")
             process = subprocess.run(
-                ['vale', '--ext=.md', '--output=JSON'],
+                [
+                "vale",
+                "--no-global",
+                f"--config={PROJECT_ROOT / '.vale.ini'}",
+                "--ext=.md",
+                "--output=JSON",
+                ],
                 input=batch_payload,
                 text=True,
                 capture_output=True,
