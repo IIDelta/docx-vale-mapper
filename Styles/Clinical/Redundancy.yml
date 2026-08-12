@@ -1,0 +1,31 @@
+# Takeda Style Guide v6.0:
+# Appendix B, Redundant Phrases to Avoid in Your Writing
+#
+# Each replacement removes the redundant portion while preserving
+# the intended meaning.
+
+extends: substitution
+message: "Takeda lean writing: Use '%s' instead of redundant phrase '%s'."
+level: warning
+ignorecase: true
+capitalize: true
+action:
+  name: replace
+swap:
+  aggregate together: aggregate
+  aggregated together: aggregated
+  aggregating together: aggregating
+  combine together: combine
+  combined together: combined
+  combining together: combining
+  currently ongoing: ongoing
+  each individual person: each person
+  end result: result
+  first initiated: initiated
+  future plans: plans
+  past history: history
+  period of time: period
+  reassessed again: reassessed
+  time period: period
+  true fact: fact
+

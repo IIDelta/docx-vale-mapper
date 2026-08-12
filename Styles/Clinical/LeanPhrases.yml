@@ -1,0 +1,30 @@
+# Takeda Style Guide v6.0:
+# Appendix C, Correct and Preferred Wording Choices
+#
+# These are lean-writing recommendations. They remain warnings because
+# authors may need to adjust grammar after accepting a replacement.
+
+extends: substitution
+message: "Takeda lean writing: Consider using '%s' instead of '%s'."
+level: warning
+ignorecase: true
+capitalize: true
+action:
+  name: replace
+swap:
+  as a consequence of: because of
+  as the result of: because of
+  at the present time: currently
+  at this point in time: currently
+  based on the fact that: because
+  despite the fact that: although
+  due to the fact that: because
+  for the purpose of: for
+  for the reason that: because
+  in case: if
+  in close proximity to: near
+  in order to: to
+  in the event that: if
+  in the vicinity of: near
+  owing to the fact that: because
+  subsequent to: after

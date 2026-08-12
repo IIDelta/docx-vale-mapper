@@ -1,0 +1,32 @@
+# Takeda Style Guide v6.0:
+# Appendix C, Correct and Preferred Wording Choices
+#
+# High-confidence lexical and word-form substitutions.
+
+extends: substitution
+message: "Takeda preferred wording: Use '%s' instead of '%s'."
+level: error
+ignorecase: true
+capitalize: true
+action:
+  name: replace
+swap:
+  a majority of: most
+  the majority of: most
+  a small number of: a few
+  a number of: several|many
+  an increased number of: more
+  a decreased number of: fewer
+  as per: per
+  alright: all right
+  data base: database
+  end point: endpoint
+  healthcare: health care
+  irregardless: regardless
+  preventative: preventive
+  timepoint: time point
+  towards: toward
+  utilize: use
+  utilized: used
+  utilizes: uses
+  utilizing: using

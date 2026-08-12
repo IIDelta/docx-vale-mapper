@@ -1,0 +1,16 @@
+# Takeda Style Guide v6.0:
+# Appendix C and Appendix D
+#
+# "Comprised of" is not correct. However, the appropriate correction
+# depends on sentence grammar:
+# - "The group comprises..."
+# - "The group is composed of..."
+#
+# Therefore, flag it without a blind automatic replacement.
+
+extends: existence
+message: "Takeda usage: Avoid 'comprised of'. Revise for grammar, for example, use 'comprises' or 'is composed of'."
+level: warning
+ignorecase: true
+tokens:
+  - '\bcomprised of\b'
