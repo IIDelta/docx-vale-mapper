@@ -1,84 +1,190 @@
+import tkinter as tk
+from tkinter import filedialog, ttk, messagebox
+import threading
+import pythoncom
 import win32com.client
 import subprocess
 import json
 import os
-from tqdm import tqdm
 
-def scan_with_native_comments_fast(docx_path, output_path):
-    abs_input = os.path.abspath(docx_path)
-    abs_output = os.path.abspath(output_path)
-    
-    print("Launching Word in the background...")
-    word = win32com.client.Dispatch("Word.Application")
-    word.Visible = False
+# --- THE CORE ENGINE ---
+def run_scan_thread(docx_path, output_path, status_var, progress_var, start_btn):
+    """This runs in the background so the GUI doesn't freeze."""
+    # 1. We MUST initialize COM for this specific background thread
+    pythoncom.CoInitialize() 
     
     try:
-        doc = word.Documents.Open(abs_input)
+        abs_input = os.path.abspath(docx_path)
+        abs_output = os.path.abspath(output_path)
         
-        batch_payload = ""
-        line_to_para_object = {} # We are now storing the actual COM object, not a number!
-        current_line = 1
-        total_paragraphs = doc.Paragraphs.Count
+        status_var.set("Launching Word in the background...")
+        word = win32com.client.Dispatch("Word.Application")
+        word.Visible = False
         
-        print("\nStep 1/3: Extracting document text (O(N) COM Enumeration)...")
-        
-        # --- THE FIX ---
-        # Instead of range(1, Count), we iterate directly over the COM collection.
-        # This completely eliminates the O(N^2) counting penalty.
-        for paragraph in tqdm(doc.Paragraphs, total=total_paragraphs, desc="Reading", unit="para"):
-            raw_text = paragraph.Range.Text
-            clean_text = raw_text.replace('\r', '').replace('\x07', '').replace('\x0b', '').replace('\n', ' ').strip()
+        try:
+            doc = word.Documents.Open(abs_input)
             
-            if not clean_text:
-                continue
+            batch_payload = ""
+            line_to_para_object = {}
+            current_line = 1
+            total_paragraphs = doc.Paragraphs.Count
+            
+            status_var.set(f"Step 1/3: Extracting {total_paragraphs} paragraphs...")
+            progress_var.set(0)
+            
+            # Extract text
+            for i, paragraph in enumerate(doc.Paragraphs, start=1):
+                raw_text = paragraph.Range.Text
+                clean_text = raw_text.replace('\r', '').replace('\x07', '').replace('\x0b', '').replace('\n', ' ').strip()
                 
-            batch_payload += clean_text + "\n\n"
-            
-            # Map Vale's line number directly to this exact Word paragraph object
-            line_to_para_object[current_line] = paragraph 
-            current_line += 2
-            
-        print("\nStep 2/3: Executing single Vale batch scan. Please wait...")
-        process = subprocess.run(
-            ['vale', '--ext=.md', '--output=JSON'],
-            input=batch_payload,
-            text=True,
-            capture_output=True,
-            check=False,
-            encoding='utf-8'
-        )
-        
-        if process.stdout.strip():
-            vale_results = json.loads(process.stdout)
-            errors = vale_results.get("stdin.md", [])
-            print(f"Found {len(errors)} issues.")
-            
-            print("\nStep 3/3: Injecting native Word comments...")
-            
-            for error in tqdm(errors, desc="Commenting", unit="tag"):
-                vale_line = error.get('Line')
+                if clean_text:
+                    batch_payload += clean_text + "\n\n"
+                    line_to_para_object[current_line] = paragraph 
+                    current_line += 2
                 
-                # Retrieve the exact Word paragraph object from memory
-                target_paragraph = line_to_para_object.get(vale_line)
-                
-                if target_paragraph:
-                    severity = error.get('Severity').upper()
-                    match_text = error.get('Match')
-                    message = error.get('Message')
-                    comment_text = f"Vale {severity} -> '{match_text}': {message}"
+                # Update the GUI progress bar (throttled to avoid freezing the UI)
+                if i % 50 == 0 or i == total_paragraphs:
+                    progress_var.set((i / total_paragraphs) * 33) # Takes up first 33% of the bar
                     
-                    # Apply the comment directly to the object's Range
-                    doc.Comments.Add(Range=target_paragraph.Range, Text=comment_text)
-                    
-        print(f"\nSaving audited document to: {abs_output}")
-        doc.SaveAs2(abs_output)
-        
+            status_var.set("Step 2/3: Executing Vale style scan...")
+            process = subprocess.run(
+                ['vale', '--ext=.md', '--output=JSON'],
+                input=batch_payload,
+                text=True,
+                capture_output=True,
+                check=False,
+                encoding='utf-8'
+            )
+            progress_var.set(66) # Scan complete, bump bar to 66%
+            
+            if process.stdout.strip():
+                vale_results = json.loads(process.stdout)
+                errors = vale_results.get("stdin.md", [])
+                
+                status_var.set(f"Step 3/3: Injecting {len(errors)} comments...")
+                total_errors = len(errors)
+                
+                if total_errors > 0:
+                    for idx, error in enumerate(errors, start=1):
+                        vale_line = error.get('Line')
+                        target_paragraph = line_to_para_object.get(vale_line)
+                        
+                        if target_paragraph:
+                            severity = error.get('Severity', 'suggestion').upper()
+                            match_text = error.get('Match', '')
+                            message = error.get('Message', '')
+                            comment_text = f"Vale {severity} -> '{match_text}': {message}"
+                            
+                            doc.Comments.Add(Range=target_paragraph.Range, Text=comment_text)
+                            
+                        # Update progress for the final 33% of the bar
+                        progress_var.set(66 + ((idx / total_errors) * 34))
+                        
+            status_var.set("Saving audited document...")
+            doc.SaveAs2(abs_output)
+            status_var.set("Complete! Document is ready.")
+            progress_var.set(100)
+            messagebox.showinfo("Success", f"Scan complete.\nSaved to:\n{abs_output}")
+            
+        finally:
+            doc.Close(SaveChanges=False)
+            word.Quit()
+            
+    except Exception as e:
+        status_var.set("Error occurred during scan.")
+        messagebox.showerror("Error", str(e))
     finally:
-        doc.Close(SaveChanges=False)
-        word.Quit()
+        # 2. We MUST uninitialize COM before the thread dies
+        pythoncom.CoUninitialize()
+        # Re-enable the start button
+        start_btn.config(state=tk.NORMAL)
+
+# --- THE GUI BUILDER ---
+def select_input(entry_widget, output_entry_widget):
+    filepath = filedialog.askopenfilename(filetypes=[("Word Documents", "*.docx")])
+    if filepath:
+        entry_widget.delete(0, tk.END)
+        entry_widget.insert(0, filepath)
+        
+        # Auto-generate the output filepath
+        directory, filename = os.path.split(filepath)
+        name, ext = os.path.splitext(filename)
+        out_filepath = os.path.join(directory, f"{name}_AUDITED{ext}")
+        
+        output_entry_widget.delete(0, tk.END)
+        output_entry_widget.insert(0, out_filepath)
+
+def select_output(entry_widget):
+    filepath = filedialog.asksaveasfilename(defaultextension=".docx", filetypes=[("Word Documents", "*.docx")])
+    if filepath:
+        entry_widget.delete(0, tk.END)
+        entry_widget.insert(0, filepath)
+
+def start_process(input_entry, output_entry, status_var, progress_var, start_btn):
+    in_path = input_entry.get()
+    out_path = output_entry.get()
+    
+    if not in_path or not out_path:
+        messagebox.showwarning("Missing Files", "Please select both input and output files.")
+        return
+        
+    if not os.path.exists(in_path):
+        messagebox.showerror("File Not Found", "The selected input file does not exist.")
+        return
+
+    # Disable button to prevent multiple clicks
+    start_btn.config(state=tk.DISABLED)
+    status_var.set("Starting...")
+    progress_var.set(0)
+    
+    # Launch the background thread
+    thread = threading.Thread(
+        target=run_scan_thread, 
+        args=(in_path, out_path, status_var, progress_var, start_btn),
+        daemon=True
+    )
+    thread.start()
+
+def build_gui():
+    root = tk.Tk()
+    root.title("Medical Writer - Vale Auditor")
+    root.geometry("600x300")
+    root.resizable(False, False)
+    
+    # Padding and layout configuration
+    frame = ttk.Frame(root, padding="20")
+    frame.pack(fill=tk.BOTH, expand=True)
+    
+    # Input Row
+    ttk.Label(frame, text="Target Protocol (.docx):").grid(row=0, column=0, sticky=tk.W, pady=(0, 5))
+    input_entry = ttk.Entry(frame, width=50)
+    input_entry.grid(row=0, column=1, padx=10, pady=(0, 5))
+    ttk.Button(frame, text="Browse", command=lambda: select_input(input_entry, output_entry)).grid(row=0, column=2, pady=(0, 5))
+    
+    # Output Row
+    ttk.Label(frame, text="Output Audited File:").grid(row=1, column=0, sticky=tk.W, pady=10)
+    output_entry = ttk.Entry(frame, width=50)
+    output_entry.grid(row=1, column=1, padx=10, pady=10)
+    ttk.Button(frame, text="Browse", command=lambda: select_output(output_entry)).grid(row=1, column=2, pady=10)
+    
+    # Progress and Status
+    status_var = tk.StringVar()
+    status_var.set("Ready.")
+    ttk.Label(frame, textvariable=status_var).grid(row=2, column=0, columnspan=3, sticky=tk.W, pady=(20, 5))
+    
+    progress_var = tk.DoubleVar()
+    progress_bar = ttk.Progressbar(frame, variable=progress_var, maximum=100)
+    progress_bar.grid(row=3, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=5)
+    
+    # Action Button
+    start_btn = ttk.Button(
+        frame, 
+        text="Run Audit", 
+        command=lambda: start_process(input_entry, output_entry, status_var, progress_var, start_btn)
+    )
+    start_btn.grid(row=4, column=0, columnspan=3, pady=20)
+    
+    root.mainloop()
 
 if __name__ == "__main__":
-    input_file = "test_clinical_doc.docx"
-    output_file = "test_clinical_doc_AUDITED.docx"
-    
-    scan_with_native_comments_fast(input_file, output_file)
+    build_gui()
