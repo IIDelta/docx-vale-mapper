@@ -1,0 +1,24 @@
+# Takeda Style Guide v6.0:
+# Section 3.2 Sex and Identity
+# Appendix C, Correct and Preferred Wording Choices
+#
+# Use person-first terminology where the guide defines a clear,
+# context-independent preferred replacement.
+
+extends: substitution
+message: "Takeda inclusive language: Use '%s' instead of '%s'."
+level: warning
+ignorecase: true
+capitalize: true
+action:
+  name: replace
+swap:
+  cancer patient: participant with cancer
+  cancer patients: participants with cancer
+  diabetic patient: participant with diabetes
+  diabetic patients: participants with diabetes
+  diabetics: participants with diabetes
+  the disabled: persons with a disability
+  the handicapped: persons with a disability
+  chairman: chair
+  chairmen: chairs

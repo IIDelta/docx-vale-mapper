@@ -1,0 +1,18 @@
+# Takeda Style Guide v6.0:
+# Section 3.2 Sex and Identity
+#
+# Avoid generic sex-specific pronouns when sex specificity is irrelevant.
+# Avoid using "male" and "female" as nouns when person-first wording
+# is appropriate.
+
+extends: existence
+message: "Takeda sex-and-identity review: Revise '%s' to use person-first, non-sex-specific wording where sex specificity is not relevant."
+level: warning
+ignorecase: true
+tokens:
+  - '\bhe/she\b'
+  - '\bhe or she\b'
+  - '\bhis/her\b'
+  - '\bhim/her\b'
+  - '\bs/he\b'
+  - '\b(?:a|the) (?:male|female)\b(?!\s+participant\b)'

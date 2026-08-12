@@ -1,0 +1,27 @@
+# Takeda Style Guide v6.0:
+# Section 3.1 Participant and Trial
+# Section 3.2 Sex and Identity
+# Appendix C, Correct and Preferred Wording Choices
+#
+# These expressions require review, but cannot safely be replaced
+# automatically without knowing clinical and narrative context.
+
+extends: existence
+message: "Takeda inclusive-language review: Avoid '%s'. Use specific, person-first, and non-stigmatizing wording appropriate to the context."
+level: warning
+ignorecase: true
+tokens:
+  - '\bnon[- ]White\b' # non-White	Use specific race or ethnicity terminology where relevant.
+  - '\bCaucasian\b' # Caucasian	Use White unless specifically referring to the Caucasus region.
+  - '\bOriental\b' # Oriental	Use Asian when that is the intended identity descriptor.
+  - '\b(?:victim|victims)\b' # victim, afflicted with, suffering from	Describe the condition without emotional or helplessness framing.
+  - '\bafflicted with\b'
+  - '\bsuffering from\b'
+  - '\bstricken with\b'
+  - '\bphysically challenged\b' # physically challenged	Use a specific, respectful disability description if relevant.
+  - '\bthe elderly\b' # the elderly	Use older adults, older participants, or another context-appropriate person-first term.
+
+
+
+
+

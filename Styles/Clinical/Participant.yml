@@ -4,23 +4,22 @@
 #
 # In clinical-trial narrative text, use "participant" rather than
 # "patient," "subject," or "healthy volunteer."
+#
+# Cancer-patient and diabetic-patient phrases are excluded because
+# A3 PersonFirstLanguage.yml provides the more specific preferred
+# wording: "participant(s) with cancer/diabetes."
 
 extends: substitution
 message: "Takeda terminology: Use '%s' instead of '%s' for an enrolled clinical-trial individual."
 level: warning
 ignorecase: true
 capitalize: true
+action:
+  name: replace
 swap:
-  patient: participant
-  patients: participants
+  '(?<!cancer )(?<!diabetic )patients': participants
+  '(?<!cancer )(?<!diabetic )patient(?![- ]reported outcomes?\b)': participant
   subject: participant
   subjects: participants
   healthy volunteer: participant
   healthy volunteers: participants
-exceptions:
-  # Established outcome terminology; do not alter automatically.
-  - patient-reported outcome
-  - patient reported outcome
-  - patient-reported
-action:
-  name: replace

@@ -1,0 +1,11 @@
+# Takeda Style Guide v6.0:
+# Section 3.2 Sex and Identity
+#
+# Do not frame treatment failure as a participant failure.
+
+extends: existence
+message: "Takeda person-first wording: Avoid '%s'. Describe the treatment as having failed rather than attributing failure to the participant."
+level: warning
+ignorecase: true
+tokens:
+  - '\b(?:the )?(?:participant|patient|subject) failed treatment\b'
