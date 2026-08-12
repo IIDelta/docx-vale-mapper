@@ -26,7 +26,10 @@ def scan_document(docx_path):
             
             if process.stdout.strip():
                 vale_results = json.loads(process.stdout)
-                errors = vale_results.get("stdin", [])
+                
+                # --- THE FIX IS HERE ---
+                # We changed "stdin" to "stdin.md" to match Vale's output
+                errors = vale_results.get("stdin.md", [])
                 
                 for error in errors:
                     error['paragraph_index'] = index 
