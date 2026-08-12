@@ -1,70 +1,210 @@
-import subprocess
-import json
+from __future__ import annotations
+
+import argparse
 import csv
+import json
+import subprocess
+import sys
+from pathlib import Path
+from typing import Any
+
 from docx import Document
 
-def scan_document(docx_path):
-    print(f"Loading document: {docx_path}")
-    doc = Document(docx_path)
-    all_errors = [] 
-    
-    for index, paragraph in enumerate(doc.paragraphs):
+
+REPOSITORY_ROOT = Path(__file__).resolve().parent
+VALE_CONFIG = REPOSITORY_ROOT / ".vale.ini"
+
+CSV_HEADERS = [
+    "location",
+    "paragraph_index",
+    "severity",
+    "rule_id",
+    "message",
+    "match",
+    "suggestion",
+    "line",
+    "span",
+    "original_text",
+]
+
+
+def run_vale(text: str) -> list[dict[str, Any]]:
+    """Run Vale against one extracted DOCX paragraph."""
+
+    command = [
+        "vale",
+        "--no-global",
+        f"--config={VALE_CONFIG}",
+        "--ext=.md",
+        "--output=JSON",
+    ]
+
+    process = subprocess.run(
+        command,
+        input=text,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    if process.returncode == 2:
+        error_message = process.stderr.strip() or process.stdout.strip()
+        raise RuntimeError(f"Vale returned a runtime error:\n{error_message}")
+
+    if not process.stdout.strip():
+        return []
+
+    try:
+        results = json.loads(process.stdout)
+    except json.JSONDecodeError as error:
+        raise RuntimeError(
+            "Vale returned output that could not be parsed as JSON:\n"
+            f"{process.stdout}"
+        ) from error
+
+    return results.get("stdin.md", [])
+
+
+def get_suggestion(alert: dict[str, Any]) -> str:
+    """
+    Safely extract Vale's optional replacement suggestion.
+
+    Vale returns Action.Params as null when a rule has no configured
+    replacement action, so this function always returns a string.
+    """
+
+    action = alert.get("Action") or {}
+
+    if not isinstance(action, dict):
+        return ""
+
+    action_params = action.get("Params") or []
+
+    if not isinstance(action_params, list):
+        return ""
+
+    return " | ".join(str(parameter) for parameter in action_params)
+
+
+def scan_document(docx_path: Path) -> list[dict[str, Any]]:
+    """Scan all nonempty body paragraphs in a DOCX document."""
+
+    document = Document(docx_path)
+    findings: list[dict[str, Any]] = []
+
+    for paragraph_index, paragraph in enumerate(document.paragraphs, start=1):
         text = paragraph.text.strip()
+
         if not text:
             continue
-            
-        print(f"Scanning Paragraph {index}...")
-        
+
         try:
-            process = subprocess.run(
-                ['vale', '--ext=.md', '--output=JSON'],
-                input=text,
-                text=True,
-                capture_output=True,
-                check=False 
+            alerts = run_vale(text)
+        except RuntimeError as error:
+            raise RuntimeError(
+                f"Unable to scan body paragraph {paragraph_index}: {error}"
+            ) from error
+
+        for alert in alerts:
+            findings.append(
+                {
+                    "location": f"Body paragraph {paragraph_index}",
+                    "paragraph_index": paragraph_index,
+                    "severity": alert.get("Severity", ""),
+                    "rule_id": alert.get("Check", ""),
+                    "message": alert.get("Message", ""),
+                    "match": alert.get("Match", ""),
+                    "suggestion": get_suggestion(alert),
+                    "line": alert.get("Line", ""),
+                    "span": alert.get("Span", ""),
+                    "original_text": text,
+                }
             )
-            
-            if process.stdout.strip():
-                vale_results = json.loads(process.stdout)
-                
-                # --- THE FIX IS HERE ---
-                # We changed "stdin" to "stdin.md" to match Vale's output
-                errors = vale_results.get("stdin.md", [])
-                
-                for error in errors:
-                    error['paragraph_index'] = index 
-                    error['original_text'] = text
-                    all_errors.append(error)
-                    print(f"  -> Found issue: {error.get('Message')}")
-                    
-        except FileNotFoundError:
-            print("Error: The 'vale' command was not found.")
-            return
-            
-    print(f"\nScan complete! Found {len(all_errors)} potential style issues.")
-    return all_errors
 
-# --- NEW EXPORT FUNCTION ---
-def export_to_csv(errors, output_path="audit_report.csv"):
-    if not errors:
-        return
-        
-    # These are the specific columns we want in our spreadsheet
-    headers = ['paragraph_index', 'Severity', 'Message', 'Match', 'original_text']
-    
-    print(f"Exporting results to {output_path}...")
-    with open(output_path, 'w', newline='', encoding='utf-8') as f:
-        # extrasaction='ignore' tells Python to drop any extra JSON data Vale sent that we don't need
-        writer = csv.DictWriter(f, fieldnames=headers, extrasaction='ignore')
+    return findings
+
+
+def export_to_csv(findings: list[dict[str, Any]], output_path: Path) -> None:
+    """Write audit findings to a UTF-8 CSV file."""
+
+    with output_path.open("w", newline="", encoding="utf-8") as output_file:
+        writer = csv.DictWriter(
+            output_file,
+            fieldnames=CSV_HEADERS,
+            extrasaction="ignore",
+        )
         writer.writeheader()
-        for error in errors:
-            writer.writerow(error)
-    print("Export complete!")
+        writer.writerows(findings)
 
-# --- UPDATED EXECUTION BLOCK ---
+
+def parse_arguments() -> argparse.Namespace:
+    """Parse command-line arguments."""
+
+    parser = argparse.ArgumentParser(
+        description="Scan DOCX body paragraphs with Takeda Vale style rules."
+    )
+
+    parser.add_argument(
+        "document",
+        type=Path,
+        help="Path to the DOCX document to audit.",
+    )
+
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=Path("auditreport.csv"),
+        help="CSV report output path. Default: auditreport.csv",
+    )
+
+    return parser.parse_args()
+
+
+def main() -> int:
+    """Run the DOCX audit and export its findings."""
+
+    arguments = parse_arguments()
+
+    if not arguments.document.is_file():
+        print(
+            f"Document not found: {arguments.document}",
+            file=sys.stderr,
+        )
+        return 2
+
+    if arguments.document.suffix.lower() != ".docx":
+        print(
+            f"Expected a .docx file, received: {arguments.document.name}",
+            file=sys.stderr,
+        )
+        return 2
+
+    if not VALE_CONFIG.is_file():
+        print(
+            f"Vale configuration not found: {VALE_CONFIG}",
+            file=sys.stderr,
+        )
+        return 2
+
+    try:
+        findings = scan_document(arguments.document)
+        export_to_csv(findings, arguments.output)
+    except FileNotFoundError:
+        print(
+            "Vale was not found. Install Vale and ensure the 'vale' command "
+            "is available on PATH.",
+            file=sys.stderr,
+        )
+        return 2
+    except (OSError, RuntimeError) as error:
+        print(f"Audit failed: {error}", file=sys.stderr)
+        return 2
+
+    print(f"Scan complete: {len(findings)} finding(s).")
+    print(f"CSV report: {arguments.output.resolve()}")
+
+    return 0
+
+
 if __name__ == "__main__":
-    test_file = "test_clinical_doc.docx"
-    # Capture the output of the scan...
-    found_errors = scan_document(test_file)
-    # ...and pass it to the exporter
-    export_to_csv(found_errors)
+    raise SystemExit(main())

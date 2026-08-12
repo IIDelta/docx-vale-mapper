@@ -1,0 +1,12 @@
+# Takeda Style Guide v6.0:
+# Appendix C, Correct and Preferred Wording Choices
+
+extends: substitution
+message: "Takeda terminology: Use '%s' instead of '%s'."
+level: error
+ignorecase: true
+capitalize: true
+swap:
+  risk-benefit: benefit-risk
+action:
+  name: replace

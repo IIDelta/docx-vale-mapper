@@ -1,0 +1,26 @@
+# Takeda Style Guide v6.0:
+# Section 3.1 Participant and Trial
+# Section 3.2 Sex and Identity
+#
+# In clinical-trial narrative text, use "participant" rather than
+# "patient," "subject," or "healthy volunteer."
+
+extends: substitution
+message: "Takeda terminology: Use '%s' instead of '%s' for an enrolled clinical-trial individual."
+level: warning
+ignorecase: true
+capitalize: true
+swap:
+  patient: participant
+  patients: participants
+  subject: participant
+  subjects: participants
+  healthy volunteer: participant
+  healthy volunteers: participants
+exceptions:
+  # Established outcome terminology; do not alter automatically.
+  - patient-reported outcome
+  - patient reported outcome
+  - patient-reported
+action:
+  name: replace

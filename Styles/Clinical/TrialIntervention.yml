@@ -1,0 +1,17 @@
+# Takeda Style Guide v6.0:
+# Section 3.1 Participant and Trial
+#
+# Use "trial intervention" instead of "study drug" in clinical documents.
+
+extends: substitution
+message: "Takeda terminology: Use '%s' instead of '%s'."
+level: error
+ignorecase: true
+capitalize: true
+swap:
+  study drug: trial intervention
+  study drugs: trial interventions
+  study intervention: trial intervention
+  study interventions: trial interventions
+action:
+  name: replace

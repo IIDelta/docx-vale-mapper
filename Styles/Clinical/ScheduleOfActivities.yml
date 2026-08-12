@@ -1,0 +1,14 @@
+# Takeda Style Guide v6.0:
+# Appendix C, Correct and Preferred Wording Choices
+
+extends: substitution
+message: "Takeda terminology: Use '%s' instead of '%s'."
+level: error
+ignorecase: true
+capitalize: true
+swap:
+  schedule of events: schedule of activities
+  schedule of assessments: schedule of activities
+  schedule of events and assessments: schedule of activities
+action:
+  name: replace

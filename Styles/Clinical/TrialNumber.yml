@@ -1,0 +1,15 @@
+# Takeda Style Guide v6.0:
+# Appendix C, Correct and Preferred Wording Choices
+#
+# Preferred form: Trial C25001
+# Nonpreferred form: the C25001 trial
+
+extends: substitution
+message: "Takeda terminology: Use '%s' instead of '%s'."
+level: warning
+ignorecase: true
+capitalize: true
+action:
+  name: replace
+swap:
+  '\bthe ((?:[A-Z]{1,12}-)?[A-Z]?\d{2,}(?:-\d+)*) trial\b': 'Trial $1'
