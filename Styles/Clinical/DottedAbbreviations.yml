@@ -1,0 +1,19 @@
+# Takeda Style Guide v6.0:
+# Section 1.1, Other Abbreviation Rules
+#
+# Do not include periods in abbreviations, except "No." for number
+# or when a period is part of a formal person's or organization's name.
+
+extends: substitution
+message: "Takeda abbreviation style: Use '%s' instead of '%s'."
+level: error
+ignorecase: false
+capitalize: false
+nonword: true
+action:
+  name: replace
+swap:
+  '\bU\.S\.(?=\s|$|[,;:])': US
+  '\bU\.K\.(?=\s|$|[,;:])': UK
+  '\bE\.U\.(?=\s|$|[,;:])': EU
+  '\bvs\.(?=\s|$|[,;:])': vs

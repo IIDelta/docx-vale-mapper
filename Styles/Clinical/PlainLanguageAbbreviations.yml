@@ -1,0 +1,20 @@
+# Takeda Style Guide v6.0:
+# Section 1.1, Other Abbreviation Rules
+#
+# Do not use ie, eg, or etc, with or without periods.
+# Prefer "that is," "for example," and "and so forth" or "and so on."
+
+extends: substitution
+message: "Takeda plain language: Use '%s' instead of '%s'."
+level: error
+ignorecase: true
+capitalize: true
+nonword: true
+action:
+  name: replace
+swap:
+  '\be\.g\.(?=\s|$|[,;:])': for example
+  '\beg\b': for example
+  '\bi\.e\.(?=\s|$|[,;:])': that is
+  '\bie\b': that is
+  '\betc\.?(?=\s|$|[,;:])': and so forth|and so on
