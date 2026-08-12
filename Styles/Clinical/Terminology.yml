@@ -1,0 +1,7 @@
+extends: substitution
+message: "Regulatory standard: Use '%s' instead of '%s'."
+level: error
+ignorecase: true
+swap:
+  patient: subject
+  patients: subjects
