@@ -6,12 +6,59 @@ import win32com.client
 import subprocess
 import json
 import os
+import sys
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parent
+REGRESSION_TEST_RUNNER = PROJECT_ROOT / "tests" / "runregressiontests.py"
+
+def run_regression_gate() -> None:
+    """Run all approved Vale fixtures before auditing a live document."""
+
+    command = [
+        sys.executable,
+        str(REGRESSION_TEST_RUNNER),
+    ]
+
+    process = subprocess.run(
+        command,
+        cwd=PROJECT_ROOT,
+        text=True,
+        capture_output=True,
+        encoding="utf-8",
+        check=False,
+    )
+
+    if process.returncode != 0:
+        output = process.stdout.strip()
+        errors = process.stderr.strip()
+
+        details = "\n\n".join(
+            value
+            for value in [output, errors]
+            if value
+        )
+
+        raise RuntimeError(
+            "The Takeda Vale regression suite failed. "
+            "The live-document audit was not started.\n\n"
+            f"{details}"
+        )
+
 
 # --- THE CORE ENGINE ---
 def run_scan_thread(docx_path, output_path, status_var, progress_var, start_btn):
     """This runs in the background so the GUI doesn't freeze."""
     # 1. We MUST initialize COM for this specific background thread
     pythoncom.CoInitialize() 
+
+    status_var.set("Running approved rule regression tests...")
+    progress_var.set(0)
+
+    run_regression_gate()
+
+    status_var.set("Regression tests passed. Launching Word...")
+    progress_var.set(5)
     
     try:
         abs_input = os.path.abspath(docx_path)

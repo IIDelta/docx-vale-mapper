@@ -1,0 +1,38 @@
+{
+  "a1coreclinicalterminology.md": {
+    "expected_total": 8,
+    "expected_checks": {
+      "Clinical.Participant": 3,
+      "Clinical.TrialIntervention": 1,
+      "Clinical.ScheduleOfActivities": 1,
+      "Clinical.EndOfTrial": 1,
+      "Clinical.BenefitRisk": 1,
+      "Clinical.TrialNumber": 1
+    }
+  },
+  "a2preferredwording.md": {
+    "expected_total": 49,
+    "expected_checks": {
+      "Clinical.PreferredWordChoices": 20,
+      "Clinical.LeanPhrases": 16,
+      "Clinical.Redundancy": 12,
+      "Clinical.CompriseUsage": 1
+    }
+  },
+  "a3inclusivelanguage.md": {
+    "expected_total": 24,
+    "expected_checks": {
+      "Clinical.PersonFirstLanguage": 8,
+      "Clinical.InclusiveLanguageReview": 9,
+      "Clinical.SexIdentityReview": 6,
+      "Clinical.TreatmentFailure": 1
+    }
+  },
+  "a4abbreviations.md": {
+    "expected_total": 7,
+    "expected_checks": {
+      "Clinical.PlainLanguageAbbreviations": 3,
+      "Clinical.DottedAbbreviations": 4
+    }
+  }
+}
