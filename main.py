@@ -1,210 +1,84 @@
-from __future__ import annotations
-
-import argparse
-import csv
-import json
+import win32com.client
 import subprocess
-import sys
-from pathlib import Path
-from typing import Any
+import json
+import os
+from tqdm import tqdm
 
-from docx import Document
-
-
-REPOSITORY_ROOT = Path(__file__).resolve().parent
-VALE_CONFIG = REPOSITORY_ROOT / ".vale.ini"
-
-CSV_HEADERS = [
-    "location",
-    "paragraph_index",
-    "severity",
-    "rule_id",
-    "message",
-    "match",
-    "suggestion",
-    "line",
-    "span",
-    "original_text",
-]
-
-
-def run_vale(text: str) -> list[dict[str, Any]]:
-    """Run Vale against one extracted DOCX paragraph."""
-
-    command = [
-        "vale",
-        "--no-global",
-        f"--config={VALE_CONFIG}",
-        "--ext=.md",
-        "--output=JSON",
-    ]
-
-    process = subprocess.run(
-        command,
-        input=text,
-        text=True,
-        capture_output=True,
-        check=False,
-    )
-
-    if process.returncode == 2:
-        error_message = process.stderr.strip() or process.stdout.strip()
-        raise RuntimeError(f"Vale returned a runtime error:\n{error_message}")
-
-    if not process.stdout.strip():
-        return []
-
+def scan_with_native_comments_fast(docx_path, output_path):
+    abs_input = os.path.abspath(docx_path)
+    abs_output = os.path.abspath(output_path)
+    
+    print("Launching Word in the background...")
+    word = win32com.client.Dispatch("Word.Application")
+    word.Visible = False
+    
     try:
-        results = json.loads(process.stdout)
-    except json.JSONDecodeError as error:
-        raise RuntimeError(
-            "Vale returned output that could not be parsed as JSON:\n"
-            f"{process.stdout}"
-        ) from error
-
-    return results.get("stdin.md", [])
-
-
-def get_suggestion(alert: dict[str, Any]) -> str:
-    """
-    Safely extract Vale's optional replacement suggestion.
-
-    Vale returns Action.Params as null when a rule has no configured
-    replacement action, so this function always returns a string.
-    """
-
-    action = alert.get("Action") or {}
-
-    if not isinstance(action, dict):
-        return ""
-
-    action_params = action.get("Params") or []
-
-    if not isinstance(action_params, list):
-        return ""
-
-    return " | ".join(str(parameter) for parameter in action_params)
-
-
-def scan_document(docx_path: Path) -> list[dict[str, Any]]:
-    """Scan all nonempty body paragraphs in a DOCX document."""
-
-    document = Document(docx_path)
-    findings: list[dict[str, Any]] = []
-
-    for paragraph_index, paragraph in enumerate(document.paragraphs, start=1):
-        text = paragraph.text.strip()
-
-        if not text:
-            continue
-
-        try:
-            alerts = run_vale(text)
-        except RuntimeError as error:
-            raise RuntimeError(
-                f"Unable to scan body paragraph {paragraph_index}: {error}"
-            ) from error
-
-        for alert in alerts:
-            findings.append(
-                {
-                    "location": f"Body paragraph {paragraph_index}",
-                    "paragraph_index": paragraph_index,
-                    "severity": alert.get("Severity", ""),
-                    "rule_id": alert.get("Check", ""),
-                    "message": alert.get("Message", ""),
-                    "match": alert.get("Match", ""),
-                    "suggestion": get_suggestion(alert),
-                    "line": alert.get("Line", ""),
-                    "span": alert.get("Span", ""),
-                    "original_text": text,
-                }
-            )
-
-    return findings
-
-
-def export_to_csv(findings: list[dict[str, Any]], output_path: Path) -> None:
-    """Write audit findings to a UTF-8 CSV file."""
-
-    with output_path.open("w", newline="", encoding="utf-8") as output_file:
-        writer = csv.DictWriter(
-            output_file,
-            fieldnames=CSV_HEADERS,
-            extrasaction="ignore",
+        doc = word.Documents.Open(abs_input)
+        
+        batch_payload = ""
+        line_to_para_object = {} # We are now storing the actual COM object, not a number!
+        current_line = 1
+        total_paragraphs = doc.Paragraphs.Count
+        
+        print("\nStep 1/3: Extracting document text (O(N) COM Enumeration)...")
+        
+        # --- THE FIX ---
+        # Instead of range(1, Count), we iterate directly over the COM collection.
+        # This completely eliminates the O(N^2) counting penalty.
+        for paragraph in tqdm(doc.Paragraphs, total=total_paragraphs, desc="Reading", unit="para"):
+            raw_text = paragraph.Range.Text
+            clean_text = raw_text.replace('\r', '').replace('\x07', '').replace('\x0b', '').replace('\n', ' ').strip()
+            
+            if not clean_text:
+                continue
+                
+            batch_payload += clean_text + "\n\n"
+            
+            # Map Vale's line number directly to this exact Word paragraph object
+            line_to_para_object[current_line] = paragraph 
+            current_line += 2
+            
+        print("\nStep 2/3: Executing single Vale batch scan. Please wait...")
+        process = subprocess.run(
+            ['vale', '--ext=.md', '--output=JSON'],
+            input=batch_payload,
+            text=True,
+            capture_output=True,
+            check=False,
+            encoding='utf-8'
         )
-        writer.writeheader()
-        writer.writerows(findings)
-
-
-def parse_arguments() -> argparse.Namespace:
-    """Parse command-line arguments."""
-
-    parser = argparse.ArgumentParser(
-        description="Scan DOCX body paragraphs with Takeda Vale style rules."
-    )
-
-    parser.add_argument(
-        "document",
-        type=Path,
-        help="Path to the DOCX document to audit.",
-    )
-
-    parser.add_argument(
-        "--output",
-        type=Path,
-        default=Path("auditreport.csv"),
-        help="CSV report output path. Default: auditreport.csv",
-    )
-
-    return parser.parse_args()
-
-
-def main() -> int:
-    """Run the DOCX audit and export its findings."""
-
-    arguments = parse_arguments()
-
-    if not arguments.document.is_file():
-        print(
-            f"Document not found: {arguments.document}",
-            file=sys.stderr,
-        )
-        return 2
-
-    if arguments.document.suffix.lower() != ".docx":
-        print(
-            f"Expected a .docx file, received: {arguments.document.name}",
-            file=sys.stderr,
-        )
-        return 2
-
-    if not VALE_CONFIG.is_file():
-        print(
-            f"Vale configuration not found: {VALE_CONFIG}",
-            file=sys.stderr,
-        )
-        return 2
-
-    try:
-        findings = scan_document(arguments.document)
-        export_to_csv(findings, arguments.output)
-    except FileNotFoundError:
-        print(
-            "Vale was not found. Install Vale and ensure the 'vale' command "
-            "is available on PATH.",
-            file=sys.stderr,
-        )
-        return 2
-    except (OSError, RuntimeError) as error:
-        print(f"Audit failed: {error}", file=sys.stderr)
-        return 2
-
-    print(f"Scan complete: {len(findings)} finding(s).")
-    print(f"CSV report: {arguments.output.resolve()}")
-
-    return 0
-
+        
+        if process.stdout.strip():
+            vale_results = json.loads(process.stdout)
+            errors = vale_results.get("stdin.md", [])
+            print(f"Found {len(errors)} issues.")
+            
+            print("\nStep 3/3: Injecting native Word comments...")
+            
+            for error in tqdm(errors, desc="Commenting", unit="tag"):
+                vale_line = error.get('Line')
+                
+                # Retrieve the exact Word paragraph object from memory
+                target_paragraph = line_to_para_object.get(vale_line)
+                
+                if target_paragraph:
+                    severity = error.get('Severity').upper()
+                    match_text = error.get('Match')
+                    message = error.get('Message')
+                    comment_text = f"Vale {severity} -> '{match_text}': {message}"
+                    
+                    # Apply the comment directly to the object's Range
+                    doc.Comments.Add(Range=target_paragraph.Range, Text=comment_text)
+                    
+        print(f"\nSaving audited document to: {abs_output}")
+        doc.SaveAs2(abs_output)
+        
+    finally:
+        doc.Close(SaveChanges=False)
+        word.Quit()
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    input_file = "test_clinical_doc.docx"
+    output_file = "test_clinical_doc_AUDITED.docx"
+    
+    scan_with_native_comments_fast(input_file, output_file)
