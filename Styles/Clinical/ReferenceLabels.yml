@@ -1,0 +1,12 @@
+# Style guide:
+# Cross-reference numbered internal document elements with capitalized labels.
+
+extends: substitution
+message: "Style guide cross-reference format: Use '%s' instead of '%s'."
+level: error
+ignorecase: false
+capitalize: false
+action:
+  name: replace
+swap:
+  '\bsection\s+(\d+(?:\.\d+)*)\b': 'Section $1'

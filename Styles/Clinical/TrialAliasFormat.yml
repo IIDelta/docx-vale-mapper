@@ -1,0 +1,12 @@
+# Style guide:
+# Cite a trial number followed by its alias in parentheses.
+
+extends: substitution
+message: "Style guide trial format: Use '%s' instead of '%s'."
+level: warning
+ignorecase: false
+capitalize: false
+action:
+  name: replace
+swap:
+  '\bTrial\s+([A-Z]{1,12}-?\d+(?:-\d+)*)\s+([A-Z][A-Z0-9-]{2,})\b': 'Trial $1 ($2)'

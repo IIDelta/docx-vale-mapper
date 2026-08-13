@@ -85,6 +85,13 @@
     "expected_checks": {
       "Clinical.CompoundFormatting": 11
     }
+  },
+  "a82references.md": {
+    "expected_total": 2,
+    "expected_checks": {
+      "Clinical.ReferenceLabels": 1,
+      "Clinical.TrialAliasFormat": 1
+    }
   }
 }
 

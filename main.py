@@ -36,7 +36,10 @@ from validators.listvalidator import (
 from validators.typographyvalidator import (
     validate_typography_paragraph,
 )
-
+from validators.referencevalidator import (
+    validate_active_external_link,
+    validate_reference_text,
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 
@@ -467,6 +470,83 @@ def add_typography_findings(
     return findings
 
 
+def add_reference_findings(
+    doc,
+    paragraph_records: list[ParagraphRecord],
+) -> list[dict]:
+    """
+    Validate raw URLs and active external Word hyperlinks.
+
+    Raw URL text is checked in all extracted paragraphs.
+    Active hyperlinks are checked through Word COM.
+    """
+
+    findings = validate_reference_text(
+        paragraphs=paragraph_records,
+    )
+
+    record_by_position = sorted(
+        paragraph_records,
+        key=lambda record: record.range_start,
+    )
+
+    for hyperlink_index in range(
+        1,
+        doc.Hyperlinks.Count + 1,
+    ):
+        hyperlink = doc.Hyperlinks.Item(
+            hyperlink_index
+        )
+
+        address = str(
+            hyperlink.Address or ""
+        ).strip()
+
+        if not address.lower().startswith(
+            ("http://", "https://")
+        ):
+            continue
+
+        display_text = clean_text(
+            hyperlink.Range.Text
+        )
+
+        # A visible raw URL is already handled by Clinical.RawExternalURL.
+        # Avoid generating duplicate comments for that same text.
+        if display_text.lower().startswith(
+            ("http://", "https://", "www.")
+        ):
+            continue
+
+        hyperlink_start = hyperlink.Range.Start
+
+        target_record = next(
+            (
+                record
+                for record in record_by_position
+                if (
+                    record.range_start
+                    <= hyperlink_start
+                    <= record.range_end
+                )
+            ),
+            None,
+        )
+
+        if target_record is None:
+            continue
+
+        findings.append(
+            validate_active_external_link(
+                paragraph=target_record,
+                display_text=display_text,
+                address=address,
+            )
+        )
+
+    return findings
+
+
 def add_structural_findings(
     doc,
     paragraph_records: list[ParagraphRecord],
@@ -514,6 +594,13 @@ def add_structural_findings(
 
     findings.extend(
         add_typography_findings(
+            doc=doc,
+            paragraph_records=paragraph_records,
+        )
+    )
+
+    findings.extend(
+        add_reference_findings(
             doc=doc,
             paragraph_records=paragraph_records,
         )
