@@ -33,6 +33,9 @@ from abbreviations.reportpaths import (
 from validators.listvalidator import (
     validate_list_structure,
 )
+from validators.typographyvalidator import (
+    validate_typography_paragraph,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -394,6 +397,75 @@ def build_paragraph_records(doc):
         total_paragraphs,
     )
 
+def add_typography_findings(
+    doc,
+    paragraph_records: list[ParagraphRecord],
+) -> list[dict]:
+    """
+    Inspect actual Word formatting for typography requirements.
+
+    Uses offset-preserving text so regex match positions align with
+    the underlying Word range.
+    """
+
+    findings: list[dict] = []
+
+    record_by_index = {
+        record.index: record
+        for record in paragraph_records
+    }
+
+    for paragraph_index, paragraph in enumerate(
+        doc.Paragraphs,
+        start=1,
+    ):
+        record = record_by_index.get(paragraph_index)
+
+        if record is None:
+            continue
+
+        raw_text = paragraph.Range.Text
+
+        offset_preserving_text = (
+            raw_text.replace("\r", " ")
+            .replace("\x07", " ")
+            .replace("\x0b", " ")
+            .replace("\n", " ")
+        )
+
+        if not offset_preserving_text.strip():
+            continue
+
+        paragraph_start = paragraph.Range.Start
+
+        def get_format(
+            start: int,
+            end: int,
+        ) -> dict[str, bool]:
+            matched_range = doc.Range(
+                paragraph_start + start,
+                paragraph_start + end,
+            )
+
+            return {
+                "italic": (
+                    matched_range.Font.Italic == -1
+                ),
+                "superscript": (
+                    matched_range.Font.Superscript == -1
+                ),
+            }
+
+        findings.extend(
+            validate_typography_paragraph(
+                paragraph=record,
+                offset_preserving_text=offset_preserving_text,
+                get_format=get_format,
+            )
+        )
+
+    return findings
+
 
 def add_structural_findings(
     doc,
@@ -437,6 +509,13 @@ def add_structural_findings(
     findings.extend(
         validate_list_structure(
             paragraphs=paragraph_records,
+        )
+    )
+
+    findings.extend(
+        add_typography_findings(
+            doc=doc,
+            paragraph_records=paragraph_records,
         )
     )
 
