@@ -30,6 +30,9 @@ from abbreviations.reviewwindow import open_review_window
 from abbreviations.reportpaths import (
     candidate_report_path_for_document,
 )
+from validators.listvalidator import (
+    validate_list_structure,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -352,6 +355,20 @@ def build_paragraph_records(doc):
         except Exception:
             style_name = ""
 
+        try:
+            list_format = paragraph.Range.ListFormat
+
+            list_marker = list_format.ListString
+
+            if not list_marker:
+                list_type = list_format.ListType
+
+                if list_type not in (0, None):
+                    list_marker = f"word_list_{list_type}"
+
+        except Exception:
+            list_marker = ""
+
         record = ParagraphRecord(
             index=index,
             line=current_line,
@@ -359,6 +376,7 @@ def build_paragraph_records(doc):
             style_name=style_name,
             range_start=paragraph.Range.Start,
             range_end=paragraph.Range.End,
+            list_marker=list_marker,
         )
 
         paragraph_records.append(record)
@@ -413,6 +431,12 @@ def add_structural_findings(
                 "deprecated_terms",
                 {},
             ),
+        )
+    )
+
+    findings.extend(
+        validate_list_structure(
+            paragraphs=paragraph_records,
         )
     )
 

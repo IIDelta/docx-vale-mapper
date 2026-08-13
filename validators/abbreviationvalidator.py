@@ -25,6 +25,7 @@ class ParagraphRecord:
     style_name: str = ""
     range_start: int = 0
     range_end: int = 0
+    list_marker: str = ""
 
 
 @dataclass(frozen=True)
