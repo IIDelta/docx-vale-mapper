@@ -15,15 +15,20 @@ from validators.abbreviationvalidator import (
     ParagraphRecord,
     clean_text,
     find_list_heading,
-    load_policy,
     normalize_abbreviation,
+    validate_deprecated_terms,
     validate_first_use,
 )
+from abbreviations.auditbridge import build_effective_policy
+from validators.findingmerge import merge_audit_findings
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 REGRESSION_TEST_RUNNER = PROJECT_ROOT / "tests" / "runregressiontests.py"
 ABBREVIATION_POLICY_PATH = (
     PROJECT_ROOT / "config" / "abbreviationpolicy.json"
+)
+ABBREVIATION_DATABASE_PATH = (
+    PROJECT_ROOT / "data" / "abbreviations.sqlite"
 )
 
 def run_regression_gate() -> None:
@@ -362,9 +367,12 @@ def add_structural_findings(
     doc,
     paragraph_records: list[ParagraphRecord],
 ) -> list[dict]:
-    """Run A4.2 structural abbreviation checks for the Word document."""
+    """Run structural abbreviation checks for the Word document."""
 
-    policy = load_policy(ABBREVIATION_POLICY_PATH)
+    policy = build_effective_policy(
+        base_policy_path=ABBREVIATION_POLICY_PATH,
+        database_path=ABBREVIATION_DATABASE_PATH,
+    )
 
     list_heading = find_list_heading(paragraph_records)
 
@@ -374,16 +382,27 @@ def add_structural_findings(
         policy=policy,
     )
 
-
     has_abbreviation_list = list_heading is not None
 
-    return validate_first_use(
+    findings = validate_first_use(
         paragraphs=paragraph_records,
         policy=policy,
         has_abbreviation_list=has_abbreviation_list,
         abbreviation_entries=abbreviation_entries,
         list_heading=list_heading,
     )
+
+    findings.extend(
+        validate_deprecated_terms(
+            paragraphs=paragraph_records,
+            deprecated_terms=policy.get(
+                "deprecated_terms",
+                {},
+            ),
+        )
+    )
+
+    return findings
 
 
 # --- THE CORE ENGINE ---
@@ -449,8 +468,13 @@ def run_scan_thread(docx_path, output_path, status_var, progress_var, start_btn)
             
             if process.stdout.strip():
                 vale_results = json.loads(process.stdout)
-                errors = vale_results.get("stdin.md", [])
-                errors.extend(structural_findings)
+                vale_errors = vale_results.get("stdin.md", [])
+                
+                errors = merge_audit_findings(
+                    vale_findings=vale_errors,
+                    structural_findings=structural_findings,
+                )
+
 
                 status_var.set(
                     f"Step 3/3: Injecting {len(errors)} comments..."

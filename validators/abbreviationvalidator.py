@@ -419,3 +419,36 @@ def validate_first_use(
         )
 
     return findings
+
+
+def validate_deprecated_terms(
+    paragraphs: list[ParagraphRecord],
+    deprecated_terms: dict[str, str],
+) -> list[dict[str, Any]]:
+    """
+    Flag reviewed deprecated abbreviations.
+
+    Deprecated terms are warned about, but never automatically replaced
+    in Word because surrounding sentence grammar and document context
+    may require review.
+    """
+
+    findings: list[dict[str, Any]] = []
+
+    for token, replacement_token in deprecated_terms.items():
+        for paragraph in paragraphs:
+            for _ in usage_spans(paragraph, token):
+                findings.append(
+                    make_finding(
+                        check="Clinical.AbbreviationDeprecated",
+                        severity="warning",
+                        message=(
+                            f"Abbreviation '{token}' is deprecated. "
+                            f"Use '{replacement_token}' instead."
+                        ),
+                        match=token,
+                        paragraph=paragraph,
+                    )
+                )
+
+    return findings
