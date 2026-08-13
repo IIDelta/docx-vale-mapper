@@ -1,4 +1,5 @@
 from __future__ import annotations
+from contextlib import contextmanager
 
 import argparse
 import hashlib
@@ -94,12 +95,36 @@ def calculate_sha256(file_path: Path) -> str:
     return digest.hexdigest()
 
 
-def initialize_database(database_path: Path) -> None:
-    """Create the database and all required tables."""
+@contextmanager
+def open_database(database_path: Path):
+    """
+    Open a SQLite connection and always close it.
+
+    SQLite connection context managers commit or roll back transactions,
+    but do not guarantee a close. This wrapper is required so Windows
+    temporary files and database files are released correctly.
+    """
 
     database_path.parent.mkdir(parents=True, exist_ok=True)
 
-    with sqlite3.connect(database_path) as connection:
+    connection = sqlite3.connect(database_path)
+    connection.execute("PRAGMA foreign_keys = ON")
+
+    try:
+        yield connection
+    except Exception:
+        connection.rollback()
+        raise
+    else:
+        connection.commit()
+    finally:
+        connection.close()
+
+
+def initialize_database(database_path: Path) -> None:
+    """Create the database and all required tables."""
+
+    with open_database(database_path) as connection:
         connection.executescript(SCHEMA)
 
 
@@ -455,7 +480,7 @@ def import_legacy_source(
 
     source_sha256 = calculate_sha256(source_path)
 
-    with sqlite3.connect(database_path) as connection:
+    with open_database(database_path) as connection:
         existing_import_id = find_existing_import(
             connection,
             source_sha256,

@@ -142,7 +142,9 @@ def run_structural_unit_tests() -> list[str]:
     )
 
     if process.returncode == 0:
-        print("PASS  A4.2 structural abbreviation validator tests")
+        print(
+            "PASS  abbreviation structural, import, and registry unit tests"
+        )
         return []
 
     details = "\n".join(

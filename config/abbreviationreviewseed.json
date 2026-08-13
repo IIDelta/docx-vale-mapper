@@ -1,0 +1,76 @@
+{
+  "decision_set": "initial_style_review",
+  "decisions": [
+    {
+      "token": "CFR",
+      "definition": "Code of Federal Regulations",
+      "status": "approved_expand",
+      "source_reference": "style_guide_section_1_1",
+      "notes": "Resolved legacy singular/plural definition conflict."
+    },
+    {
+      "token": "GCP",
+      "definition": "Good Clinical Practice",
+      "status": "approved_expand",
+      "source_reference": "style_guide_capitalization",
+      "notes": "Reviewed canonical definition."
+    },
+    {
+      "token": "MedDRA",
+      "definition": "Medical Dictionary for Regulatory Activities",
+      "status": "approved_expand",
+      "source_reference": "style_guide_sections_1_1_and_4_0",
+      "notes": "Reviewed canonical definition and capitalization."
+    },
+    {
+      "token": "SOC",
+      "definition": "System Organ Class",
+      "status": "approved_expand",
+      "source_reference": "style_guide_section_4_0",
+      "notes": "Reviewed MedDRA hierarchy definition."
+    },
+    {
+      "token": "EOT",
+      "definition": "End of Trial",
+      "status": "approved_expand",
+      "source_reference": "style_guide_appendix_c",
+      "notes": "Preferred current terminology."
+    },
+    {
+      "token": "EOS",
+      "definition": "End of Study",
+      "status": "deprecated",
+      "source_reference": "legacy_source_and_style_guide_appendix_c",
+      "replacement_token": "EOT",
+      "notes": "Deprecated in favor of End of Trial (EOT)."
+    },
+    {
+      "token": "CIOMS",
+      "definition": "Council for International Organizations of Medical Sciences",
+      "status": "reviewed_candidate",
+      "source_reference": "legacy_source",
+      "notes": "Exact duplicate consolidated; not yet approved for enforcement."
+    },
+    {
+      "token": "CRF",
+      "definition": "Case Report Form",
+      "status": "reviewed_candidate",
+      "source_reference": "legacy_source",
+      "notes": "Exact duplicate consolidated; not yet approved for enforcement."
+    },
+    {
+      "token": "CRO",
+      "definition": "Contract Research Organization",
+      "status": "reviewed_candidate",
+      "source_reference": "legacy_source",
+      "notes": "Exact duplicate consolidated; not yet approved for enforcement."
+    },
+    {
+      "token": "FAS",
+      "definition": "",
+      "status": "ambiguous",
+      "source_reference": "legacy_source",
+      "notes": "Legacy source contains both Full Analysis Set and Full Analysis Set Population. Requires an approved program or template source."
+    }
+  ]
+}
