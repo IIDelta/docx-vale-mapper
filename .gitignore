@@ -3,3 +3,8 @@ __pycache__/
 *.csv
 *.docx
 *.md
+
+# Local generated registry and import reports
+data/*.sqlite
+reports/*.json
+
