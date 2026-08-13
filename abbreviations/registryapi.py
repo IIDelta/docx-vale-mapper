@@ -140,6 +140,30 @@ def resolve_tokens(
     ]
 
 
+def list_registry_tokens(
+    database_path: Path,
+) -> list[str]:
+    """Return reviewed registry tokens ordered longest-first."""
+
+    initialize_database(database_path)
+
+    with open_database(database_path) as connection:
+        ensure_review_schema(connection)
+
+        rows = connection.execute(
+            """
+            SELECT token
+            FROM registry_entries
+            ORDER BY LENGTH(token) DESC, token COLLATE NOCASE
+            """
+        ).fetchall()
+
+    return [
+        row[0]
+        for row in rows
+    ]
+
+
 def parse_arguments() -> argparse.Namespace:
     """Parse command-line query options."""
 

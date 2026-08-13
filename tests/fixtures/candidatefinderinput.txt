@@ -1,0 +1,11 @@
+The CFR applies to the submission, and the FDA reviewed the document.
+
+The legacy document uses EOS as a milestone.
+
+The FAS was analyzed with support from CIOMS.
+
+The XYZ result was reviewed at Visit 1.
+
+The XYZ result was confirmed at Visit 2.
+
+AUC0-24 was calculated after dosing.
