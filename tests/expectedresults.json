@@ -49,6 +49,18 @@
     "expected_checks": {
       "Clinical.AgeExpressions": 5
     }
+  },
+  "a5quantitative.md": {
+    "expected_total": 10,
+    "expected_checks": {
+      "Clinical.ProseRanges": 1,
+      "Clinical.PValueFormat": 3,
+      "Clinical.ConfidenceIntervals": 1,
+      "Clinical.MathOperatorSpacing": 1,
+      "Clinical.SymbolSpacing": 2,
+      "Clinical.TrademarkSymbols": 1,
+      "Clinical.Ampersand": 1
+    }
   }
 }
 

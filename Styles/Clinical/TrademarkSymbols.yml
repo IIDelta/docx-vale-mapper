@@ -1,0 +1,9 @@
+# Style guide:
+# Do not use trademark or registered-trademark symbols in regulatory documents.
+
+extends: existence
+message: "Style guide symbols: Do not use trademark symbols in document text."
+level: error
+nonword: true
+tokens:
+  - '[™®]'

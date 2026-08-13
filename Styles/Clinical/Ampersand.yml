@@ -1,0 +1,10 @@
+# Style guide:
+# Do not use ampersands in text unless they are part of a formal name.
+# This remains a warning because formal-name context requires review.
+
+extends: existence
+message: "Style guide symbol review: Spell out '&' as 'and' unless it is part of a formal name."
+level: warning
+nonword: true
+tokens:
+  - '&'

@@ -1,0 +1,19 @@
+# Style guide:
+# Do not use spaces around mathematical symbols.
+# Do not use spaces after <, >, ≤, ≥, or ±.
+#
+# p values are handled separately by Clinical.PValueFormat.
+
+extends: substitution
+message: "Style guide mathematical notation: Use '%s' instead of '%s'."
+level: error
+ignorecase: false
+capitalize: false
+action:
+  name: replace
+swap:
+  '\b([A-Za-z]+)\s+≥\s+(\d+(?:\.\d+)?)\b': '$1≥$2'
+  '\b([A-Za-z]+)\s+≤\s+(\d+(?:\.\d+)?)\b': '$1≤$2'
+  '\b(?![Pp]\b)([A-Za-z]+)\s+>\s+(\d+(?:\.\d+)?)\b': '$1>$2'
+  '\b(?![Pp]\b)([A-Za-z]+)\s+<\s+(\d+(?:\.\d+)?)\b': '$1<$2'
+  '\b(\d+(?:\.\d+)?)\s+±\s+(\d+(?:\.\d+)?)\b': '$1±$2'

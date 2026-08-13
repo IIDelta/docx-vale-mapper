@@ -1,0 +1,19 @@
+# Style guide:
+# Use lower-case p value in ordinary text.
+# Include a leading zero.
+# Do not use spaces around p-value operators.
+
+extends: substitution
+message: "Style guide p-value format: Use '%s' instead of '%s'."
+level: error
+ignorecase: false
+capitalize: false
+action:
+  name: replace
+swap:
+  '\b[Pp]\s*=\s*\.(\d+)\b': 'p=0.$1'
+  '\b[Pp]\s*<\s*(0\.\d+)\b': 'p<$1'
+  '\b[Pp]\s*>\s*(0\.\d+)\b': 'p>$1'
+  '\b[Pp]\s*≤\s*(0\.\d+)\b': 'p≤$1'
+  '\b[Pp]\s*≥\s*(0\.\d+)\b': 'p≥$1'
+  '\b([Tt]he|[Aa]) P value\b': '$1 p value'

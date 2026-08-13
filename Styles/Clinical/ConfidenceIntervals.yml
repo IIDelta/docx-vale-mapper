@@ -1,0 +1,14 @@
+# Style guide:
+# Use a colon after 95% CI.
+# Express confidence-interval bounds with a comma.
+
+extends: substitution
+message: "Style guide confidence interval format: Use '%s' instead of '%s'."
+level: error
+ignorecase: false
+capitalize: false
+nonword: true
+action:
+  name: replace
+swap:
+  '\b95%\s*CI\s*\(\s*([−-]?\d+(?:\.\d+)?)\s*,\s*([−-]?\d+(?:\.\d+)?)\s*\)': '95% CI: $1, $2'

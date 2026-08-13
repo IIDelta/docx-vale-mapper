@@ -1,0 +1,14 @@
+# Style guide:
+# Eliminate spaces in percentages and temperatures.
+
+extends: substitution
+message: "Style guide symbol spacing: Use '%s' instead of '%s'."
+level: error
+ignorecase: false
+capitalize: false
+nonword: true
+action:
+  name: replace
+swap:
+  '(\d+(?:\.\d+)?)\s+%(?=\s|$|[.,;:)])': '$1%'
+  '(\d+(?:\.\d+)?)\s+°([CF])\b': '$1°$2'

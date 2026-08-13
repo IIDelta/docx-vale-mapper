@@ -1,0 +1,14 @@
+# Style guide:
+# In running text, express ranges using to or through.
+# This rule is intentionally limited to explicit range phrases
+# with common measurement units.
+
+extends: substitution
+message: "Style guide range format: Use '%s' instead of '%s' in running text."
+level: warning
+ignorecase: true
+capitalize: true
+action:
+  name: replace
+swap:
+  '\b((?:dose )?range(?: of)?)\s+(\d+(?:\.\d+)?)[-–](\d+(?:\.\d+)?)\s+(mg|g|kg|µg|μg|mL|L)\b': '$1 $2 to $3 $4'
