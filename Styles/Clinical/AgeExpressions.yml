@@ -1,0 +1,23 @@
+# Style guide:
+# Use participants aged 30 to 34 years.
+# Use animals older than 6 months.
+# Express an individual's age in years and months:
+# 10 years 6 months.
+
+extends: substitution
+message: "Style guide age expression: Use '%s' instead of '%s'."
+level: error
+ignorecase: true
+capitalize: true
+action:
+  name: replace
+swap:
+  '\bparticipants (\d+) to (\d+) years old\b': 'participants aged $1 to $2 years'
+  '\bparticipant (\d+) to (\d+) years old\b': 'participant aged $1 to $2 years'
+  '\bparticipants (\d+)[-–](\d+) years old\b': 'participants aged $1 to $2 years'
+  '\bparticipant (\d+)[-–](\d+) years old\b': 'participant aged $1 to $2 years'
+  '\bparticipants aged (\d+)[-–](\d+) years\b': 'participants aged $1 to $2 years'
+  '\bparticipant aged (\d+)[-–](\d+) years\b': 'participant aged $1 to $2 years'
+  '\banimals over (\d+(?:\.\d+)?) months\b': 'animals older than $1 months'
+  '\banimal over (\d+(?:\.\d+)?) months\b': 'animal older than $1 months'
+  '\b(\d+) years and (\d+) months(?: old)?\b': '$1 years $2 months'

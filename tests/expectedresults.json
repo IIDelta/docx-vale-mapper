@@ -43,6 +43,12 @@
       "Clinical.DateMonthAbbreviation": 1,
       "Clinical.TimeFormat": 2
     }
+  },
+  "a52ageexpressions.md": {
+    "expected_total": 5,
+    "expected_checks": {
+      "Clinical.AgeExpressions": 5
+    }
   }
 }
 
