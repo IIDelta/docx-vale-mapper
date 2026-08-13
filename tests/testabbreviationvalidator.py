@@ -6,6 +6,7 @@ from pathlib import Path
 from validators.abbreviationvalidator import (
     AbbreviationEntry,
     ParagraphRecord,
+    clean_text,
     load_policy,
     validate_first_use,
 )
@@ -304,6 +305,21 @@ class AbbreviationValidatorTests(unittest.TestCase):
         )
 
         self.assertEqual(findings, [])
+
+    def test_clean_text_preserves_token_boundaries(
+        self,
+    ) -> None:
+        raw_text = (
+            "XYZ\rEOS\x07FAS\x0bCFR\nFDA"
+        )
+
+        cleaned_text = clean_text(raw_text)
+
+        self.assertEqual(
+            cleaned_text,
+            "XYZ EOS FAS CFR FDA",
+        )
+
 
 
 if __name__ == "__main__":

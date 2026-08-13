@@ -7,6 +7,7 @@ from pathlib import Path
 
 from abbreviations.reviewwindow import (
     filter_candidates,
+    format_generation_blockers,
     load_candidates,
     update_candidate_payload,
 )
@@ -192,6 +193,40 @@ class ReviewWindowTests(unittest.TestCase):
             candidates[0]["token"],
             "FDA",
         )
+
+    def test_generation_blocker_formatting(self) -> None:
+        class Blocker:
+            def __init__(
+                self,
+                token: str,
+                message: str,
+            ) -> None:
+                self.token = token
+                self.message = message
+
+        blocker_text = format_generation_blockers(
+            [
+                Blocker(
+                    "EOS",
+                    "Use EOT before generating the list.",
+                ),
+                Blocker(
+                    "FAS",
+                    "Choose an approved definition first.",
+                ),
+            ]
+        )
+
+        self.assertIn(
+            "• EOS: Use EOT before generating the list.",
+            blocker_text,
+        )
+
+        self.assertIn(
+            "• FAS: Choose an approved definition first.",
+            blocker_text,
+        )
+
 
 
 if __name__ == "__main__":

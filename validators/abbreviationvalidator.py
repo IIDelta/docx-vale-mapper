@@ -50,15 +50,27 @@ def normalize_abbreviation(value: str) -> str:
 
 
 def clean_text(value: str) -> str:
-    """Normalize Word/COM text while preserving ordinary spaces."""
+    """
+    Normalize Word/COM text while preserving token boundaries.
 
-    return (
-        value.replace("\r", "")
-        .replace("\x07", "")
-        .replace("\x0b", "")
+    Word paragraphs and table cells can contain carriage returns,
+    cell-end markers, manual line breaks, and line feeds. These must
+    become spaces rather than being deleted; otherwise adjacent tokens
+    can merge, for example, XYZ + EOS becoming XYZEOS.
+    """
+
+    normalized_value = (
+        value.replace("\r", " ")
+        .replace("\x07", " ")
+        .replace("\x0b", " ")
         .replace("\n", " ")
-        .strip()
     )
+
+    return re.sub(
+        r"\s+",
+        " ",
+        normalized_value,
+    ).strip()
 
 
 def find_list_heading(

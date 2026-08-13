@@ -3,10 +3,16 @@ from __future__ import annotations
 import json
 import tkinter as tk
 from pathlib import Path
-from tkinter import messagebox, ttk
+from tkinter import filedialog, messagebox, ttk
 from typing import Any
 from abbreviations.legacyimport import normalize_token
 from abbreviations.reviewactions import apply_local_decision
+from abbreviations.listgenerator import (
+    build_generation_plan,
+    generate_list_document,
+    load_candidate_report as load_generation_candidate_report,
+    write_generation_report,
+)
 
 
 BUCKET_ORDER = [
@@ -272,6 +278,20 @@ def update_candidate_report_resolution(
     temporary_path.replace(report_path)
 
     return True
+
+
+def format_generation_blockers(
+    blockers,
+) -> str:
+    """Format list-generation blockers for a user-facing dialog."""
+
+    if not blockers:
+        return ""
+
+    return "\n".join(
+        f"• {blocker.token}: {blocker.message}"
+        for blocker in blockers
+    )
 
 
 class AbbreviationReviewWindow(tk.Toplevel):
@@ -652,20 +672,21 @@ class AbbreviationReviewWindow(tk.Toplevel):
         self.apply_decision_button.grid(
             row=2,
             column=0,
-            columnspan=2,
             sticky=tk.W,
             pady=(8, 0),
         )
 
-        ttk.Label(
+        self.generate_list_button = ttk.Button(
             action_frame,
-            textvariable=self.action_status_var,
-        ).grid(
+            text="Generate List",
+            command=self.generate_list,
+        )
+
+        self.generate_list_button.grid(
             row=2,
-            column=2,
-            columnspan=2,
+            column=1,
             sticky=tk.W,
-            padx=(12, 0),
+            padx=(8, 0),
             pady=(8, 0),
         )
 
@@ -907,6 +928,124 @@ class AbbreviationReviewWindow(tk.Toplevel):
                 f"{candidate.get('token', '')}.\n\n"
                 f"Applied status: {resolution.status}\n"
                 f"Decision set: {report['decision_set']}"
+            ),
+            parent=self,
+        )
+
+
+    def generate_list(self) -> None:
+        """Build and save a standalone abbreviation-list DOCX."""
+
+        try:
+            candidate_report = load_generation_candidate_report(
+                self.report_path
+            )
+
+            plan = build_generation_plan(
+                database_path=self.database_path,
+                candidate_report=candidate_report,
+            )
+
+        except (OSError, ValueError, json.JSONDecodeError) as error:
+            messagebox.showerror(
+                "List Generation Error",
+                str(error),
+                parent=self,
+            )
+            return
+
+        if not plan.can_generate:
+            blocker_text = format_generation_blockers(
+                plan.blockers
+            )
+
+            messagebox.showwarning(
+                "List Generation Blocked",
+                (
+                    "The list cannot be generated until the "
+                    "following candidates are resolved:\n\n"
+                    f"{blocker_text}"
+                ),
+                parent=self,
+            )
+
+            self.action_status_var.set(
+                f"List generation blocked by "
+                f"{len(plan.blockers)} candidate(s)."
+            )
+
+            return
+
+        report_name = self.report_path.name
+
+        base_name = report_name.replace(
+            ".abbreviationreview.json",
+            "",
+        )
+
+        default_output = (
+            self.report_path.parent
+            / f"{base_name}_abbreviations.docx"
+        )
+
+        selected_output = filedialog.asksaveasfilename(
+            parent=self,
+            title="Save List of Abbreviations",
+            initialfile=default_output.name,
+            initialdir=str(default_output.parent),
+            defaultextension=".docx",
+            filetypes=[
+                (
+                    "Word Documents",
+                    "*.docx",
+                )
+            ],
+        )
+
+        if not selected_output:
+            self.action_status_var.set(
+                "List generation cancelled."
+            )
+            return
+
+        output_path = Path(selected_output)
+
+        generation_report_path = output_path.with_suffix(
+            ".listgeneration.json"
+        )
+
+        try:
+            generate_list_document(
+                plan=plan,
+                output_path=output_path,
+            )
+
+            write_generation_report(
+                plan=plan,
+                output_path=generation_report_path,
+            )
+
+        except (OSError, ValueError) as error:
+            messagebox.showerror(
+                "List Generation Error",
+                str(error),
+                parent=self,
+            )
+            return
+
+        self.action_status_var.set(
+            f"Generated {len(plan.entries)} list entry/entries."
+        )
+
+        messagebox.showinfo(
+            "List Generated",
+            (
+                "List of Abbreviations created successfully.\n\n"
+                f"Entries: {len(plan.entries)}\n"
+                f"Excluded protected or ignored terms: "
+                f"{len(plan.excluded_tokens)}\n\n"
+                f"DOCX:\n{output_path}\n\n"
+                f"Plan report:\n{generation_report_path}"
             ),
             parent=self,
         )
