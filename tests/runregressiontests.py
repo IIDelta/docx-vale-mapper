@@ -118,6 +118,48 @@ def validate_fixture(
     return failures
 
 
+def run_structural_unit_tests() -> list[str]:
+    """Run pure-Python structural validator tests."""
+
+    command = [
+        sys.executable,
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test*.py",
+    ]
+
+    process = subprocess.run(
+        command,
+        cwd=PROJECT_ROOT,
+        text=True,
+        capture_output=True,
+        encoding="utf-8",
+        check=False,
+    )
+
+    if process.returncode == 0:
+        print("PASS  A4.2 structural abbreviation validator tests")
+        return []
+
+    details = "\n".join(
+        value
+        for value in [
+            process.stdout.strip(),
+            process.stderr.strip(),
+        ]
+        if value
+    )
+
+    return [
+        "A4.2 structural abbreviation validator tests failed.\n"
+        f"{details}"
+    ]
+
+
 def parse_arguments() -> argparse.Namespace:
     """Parse optional fixture-selection arguments."""
 
@@ -184,6 +226,9 @@ def main() -> int:
         )
         all_failures.extend(failures)
 
+    if arguments.fixtures is None:
+        all_failures.extend(run_structural_unit_tests())
+
     print()
 
     if all_failures:
@@ -195,10 +240,17 @@ def main() -> int:
 
         return 1
 
-    print(
-        f"REGRESSION TESTS PASSED "
-        f"({len(selected_fixtures)} fixture file(s))"
-    )
+    if arguments.fixtures is None:
+        print(
+            f"REGRESSION TESTS PASSED "
+            f"({len(selected_fixtures)} Vale fixture file(s) "
+            "and structural validator tests)"
+        )
+    else:
+        print(
+            f"REGRESSION TESTS PASSED "
+            f"({len(selected_fixtures)} fixture file(s))"
+        )
 
     return 0
 

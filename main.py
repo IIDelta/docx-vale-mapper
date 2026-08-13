@@ -8,9 +8,20 @@ import json
 import os
 import sys
 from pathlib import Path
+from validators.abbreviationvalidator import (
+    AbbreviationEntry,
+    ParagraphRecord,
+    clean_text,
+    find_list_heading,
+    load_policy,
+    validate_first_use,
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 REGRESSION_TEST_RUNNER = PROJECT_ROOT / "tests" / "runregressiontests.py"
+ABBREVIATION_POLICY_PATH = (
+    PROJECT_ROOT / "config" / "abbreviationpolicy.json"
+)
 
 def run_regression_gate() -> None:
     """Run all approved Vale fixtures before auditing a live document."""
@@ -46,6 +57,140 @@ def run_regression_gate() -> None:
         )
 
 
+def extract_abbreviation_entries_from_word(
+    doc,
+    heading_record: ParagraphRecord | None,
+) -> list[AbbreviationEntry]:
+    """
+    Extract a two-column List of Abbreviations table following the
+    identified heading.
+
+    The first valid two-column table after the heading is used.
+    """
+
+    if heading_record is None:
+        return []
+
+    for table_index in range(1, doc.Tables.Count + 1):
+        table = doc.Tables.Item(table_index)
+
+        if table.Range.Start <= heading_record.range_end:
+            continue
+
+        entries: list[AbbreviationEntry] = []
+
+        for row_index in range(1, table.Rows.Count + 1):
+            row = table.Rows.Item(row_index)
+
+            try:
+                if row.Cells.Count < 2:
+                    continue
+
+                abbreviation = clean_text(
+                    row.Cells.Item(1).Range.Text
+                )
+
+                definition = clean_text(
+                    row.Cells.Item(2).Range.Text
+                )
+            except Exception:
+                continue
+
+            if not abbreviation:
+                continue
+
+            entries.append(
+                AbbreviationEntry(
+                    abbreviation=abbreviation,
+                    definition=definition,
+                    source_label=(
+                        f"List of Abbreviations table row {row_index}"
+                    ),
+                )
+            )
+
+        if len(entries) >= 2:
+            return entries
+
+    return []
+
+
+def build_paragraph_records(doc):
+    """
+    Extract body paragraphs, retain Word location metadata, and build
+    the Vale batch payload and line-to-paragraph map.
+    """
+
+    batch_parts: list[str] = []
+    line_to_paragraph: dict[int, Any] = {}
+    paragraph_records: list[ParagraphRecord] = []
+
+    current_line = 1
+    total_paragraphs = doc.Paragraphs.Count
+
+    for index, paragraph in enumerate(doc.Paragraphs, start=1):
+        raw_text = paragraph.Range.Text
+        normalized_text = clean_text(raw_text)
+
+        if not normalized_text:
+            continue
+
+        try:
+            style_name = paragraph.Style.NameLocal
+        except Exception:
+            style_name = ""
+
+        record = ParagraphRecord(
+            index=index,
+            line=current_line,
+            text=normalized_text,
+            style_name=style_name,
+            range_start=paragraph.Range.Start,
+            range_end=paragraph.Range.End,
+        )
+
+        paragraph_records.append(record)
+        line_to_paragraph[current_line] = paragraph
+        batch_parts.append(normalized_text)
+
+        current_line += 2
+
+    batch_payload = "\n\n".join(batch_parts)
+
+    return (
+        batch_payload,
+        line_to_paragraph,
+        paragraph_records,
+        total_paragraphs,
+    )
+
+
+def add_structural_findings(
+    doc,
+    paragraph_records: list[ParagraphRecord],
+) -> list[dict]:
+    """Run A4.2 structural abbreviation checks for the Word document."""
+
+    policy = load_policy(ABBREVIATION_POLICY_PATH)
+
+    list_heading = find_list_heading(paragraph_records)
+
+    abbreviation_entries = extract_abbreviation_entries_from_word(
+        doc=doc,
+        heading_record=list_heading,
+    )
+
+    has_abbreviation_list = list_heading is not None
+
+    return validate_first_use(
+        paragraphs=paragraph_records,
+        policy=policy,
+        has_abbreviation_list=has_abbreviation_list,
+        abbreviation_entries=abbreviation_entries,
+        list_heading=list_heading,
+    )
+
+
 # --- THE CORE ENGINE ---
 def run_scan_thread(docx_path, output_path, status_var, progress_var, start_btn):
     """This runs in the background so the GUI doesn't freeze."""
@@ -73,29 +218,23 @@ def run_scan_thread(docx_path, output_path, status_var, progress_var, start_btn)
         
         try:
             doc = word.Documents.Open(abs_input)
-            
-            batch_payload = ""
-            line_to_para_object = {}
-            current_line = 1
-            total_paragraphs = doc.Paragraphs.Count
-            
-            status_var.set(f"Step 1/3: Extracting {total_paragraphs} paragraphs...")
-            progress_var.set(0)
-            
-            # Extract text
-            for i, paragraph in enumerate(doc.Paragraphs, start=1):
-                raw_text = paragraph.Range.Text
-                clean_text = raw_text.replace('\r', '').replace('\x07', '').replace('\x0b', '').replace('\n', ' ').strip()
-                
-                if clean_text:
-                    batch_payload += clean_text + "\n\n"
-                    line_to_para_object[current_line] = paragraph 
-                    current_line += 2
-                
-                # Update the GUI progress bar (throttled to avoid freezing the UI)
-                if i % 50 == 0 or i == total_paragraphs:
-                    progress_var.set((i / total_paragraphs) * 33) # Takes up first 33% of the bar
-                    
+            (
+                batch_payload,
+                line_to_para_object,
+                paragraph_records,
+                total_paragraphs,
+            ) = build_paragraph_records(doc)
+
+            status_var.set(
+                f"Step 1/3: Extracting {total_paragraphs} paragraphs..."
+            )
+            progress_var.set(33)
+
+            structural_findings = add_structural_findings(
+                doc=doc,
+                paragraph_records=paragraph_records,
+            )
+
             status_var.set("Step 2/3: Executing Vale style scan...")
             process = subprocess.run(
                 [
@@ -116,8 +255,12 @@ def run_scan_thread(docx_path, output_path, status_var, progress_var, start_btn)
             if process.stdout.strip():
                 vale_results = json.loads(process.stdout)
                 errors = vale_results.get("stdin.md", [])
-                
-                status_var.set(f"Step 3/3: Injecting {len(errors)} comments...")
+                errors.extend(structural_findings)
+
+                status_var.set(
+                    f"Step 3/3: Injecting {len(errors)} comments..."
+                )
+
                 total_errors = len(errors)
                 
                 if total_errors > 0:
@@ -129,7 +272,12 @@ def run_scan_thread(docx_path, output_path, status_var, progress_var, start_btn)
                             severity = error.get('Severity', 'suggestion').upper()
                             match_text = error.get('Match', '')
                             message = error.get('Message', '')
-                            comment_text = f"Vale {severity} -> '{match_text}': {message}"
+                            rule_id = error.get("Check", "Clinical.UnknownRule")
+
+                            comment_text = (
+                                f"{rule_id} {severity} -> "
+                                f"'{match_text}': {message}"
+)
                             
                             doc.Comments.Add(Range=target_paragraph.Range, Text=comment_text)
                             

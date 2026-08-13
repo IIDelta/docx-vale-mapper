@@ -1,0 +1,56 @@
+{
+  "never_expand": [
+    "AIDS",
+    "CI",
+    "COVID-19",
+    "DNA",
+    "EDTA",
+    "FDA",
+    "HIV",
+    "HLA",
+    "ICH",
+    "IQ",
+    "IQR",
+    "LS",
+    "N",
+    "n",
+    "PDF",
+    "pH",
+    "RNA",
+    "SARS-CoV-2",
+    "SD",
+    "SE",
+    "SEM",
+    "US",
+    "UK",
+    "EU",
+    "UV",
+    "WHO"
+  ],
+  "tracked_abbreviations": {
+    "AE": {
+      "expansion": "adverse event"
+    },
+    "AEs": {
+      "expansion": "adverse events"
+    },
+    "DLT": {
+      "expansion": "dose-limiting toxicity"
+    },
+    "DLTs": {
+      "expansion": "dose-limiting toxicities"
+    },
+    "LFT": {
+      "expansion": "liver function test"
+    },
+    "LFTs": {
+      "expansion": "liver function tests"
+    },
+    "MedDRA": {
+      "expansion": "Medical Dictionary for Regulatory Activities"
+    },
+    "EMA": {
+      "expansion": "European Medicines Agency"
+    }
+  }
+}
