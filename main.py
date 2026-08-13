@@ -40,6 +40,10 @@ from validators.referencevalidator import (
     validate_active_external_link,
     validate_reference_text,
 )
+from validators.tablevalidator import (
+    TableCellRecord,
+    validate_table_cells,
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 
@@ -546,6 +550,113 @@ def add_reference_findings(
 
     return findings
 
+def add_table_findings(
+    doc,
+    paragraph_records: list[ParagraphRecord],
+) -> list[dict]:
+    """
+    Extract Word table cells and validate basic table formatting.
+    """
+
+    findings: list[dict] = []
+
+    if doc.Tables.Count == 0:
+        return findings
+
+    sorted_records = sorted(
+        paragraph_records,
+        key=lambda record: record.range_start,
+    )
+
+    def record_for_position(
+        position: int,
+    ) -> ParagraphRecord | None:
+        for record in sorted_records:
+            if (
+                record.range_start
+                <= position
+                <= record.range_end
+            ):
+                return record
+
+        if not sorted_records:
+            return None
+
+        return min(
+            sorted_records,
+            key=lambda record: abs(
+                record.range_start - position
+            ),
+        )
+
+    cells: list[TableCellRecord] = []
+
+    for table_index in range(
+        1,
+        doc.Tables.Count + 1,
+    ):
+        table = doc.Tables.Item(table_index)
+
+        for row_index in range(
+            1,
+            table.Rows.Count + 1,
+        ):
+            row = table.Rows.Item(row_index)
+
+            try:
+                cell_count = row.Cells.Count
+            except Exception:
+                continue
+
+            for column_index in range(
+                1,
+                cell_count + 1,
+            ):
+                try:
+                    word_cell = row.Cells.Item(
+                        column_index
+                    )
+
+                    cell_text = clean_text(
+                        word_cell.Range.Text
+                    )
+
+                    paragraph_record = record_for_position(
+                        word_cell.Range.Start
+                    )
+
+                except Exception:
+                    continue
+
+                if (
+                    not cell_text
+                    or paragraph_record is None
+                ):
+                    continue
+
+                cells.append(
+                    TableCellRecord(
+                        table_index=table_index,
+                        row_index=row_index,
+                        column_index=column_index,
+                        text=cell_text,
+                        paragraph=paragraph_record,
+                        range_start=word_cell.Range.Start,
+                        # Exclude the Word cell-end marker.
+                        range_end=max(
+                            word_cell.Range.Start,
+                            word_cell.Range.End - 1,
+                        ),
+                    )
+                )
+
+
+    findings.extend(
+        validate_table_cells(cells)
+    )
+
+    return findings
+
 
 def add_structural_findings(
     doc,
@@ -601,6 +712,13 @@ def add_structural_findings(
 
     findings.extend(
         add_reference_findings(
+            doc=doc,
+            paragraph_records=paragraph_records,
+        )
+    )
+
+    findings.extend(
+        add_table_findings(
             doc=doc,
             paragraph_records=paragraph_records,
         )
@@ -727,24 +845,64 @@ def run_scan_thread(docx_path, output_path, status_var, progress_var, start_btn)
                 
                 if total_errors > 0:
                     for idx, error in enumerate(errors, start=1):
-                        vale_line = error.get('Line')
-                        target_paragraph = line_to_para_object.get(vale_line)
-                        
-                        if target_paragraph:
-                            severity = error.get('Severity', 'suggestion').upper()
-                            match_text = error.get('Match', '')
-                            message = error.get('Message', '')
-                            rule_id = error.get("Check", "Clinical.UnknownRule")
+                        vale_line = error.get("Line")
+
+                        range_start = error.get("RangeStart")
+                        range_end = error.get("RangeEnd")
+
+                        target_range = None
+
+                        # Table and future exact-range structural findings use their
+                        # saved Word character-range coordinates.
+                        if (
+                            isinstance(range_start, int)
+                            and isinstance(range_end, int)
+                            and range_end > range_start
+                        ):
+                            target_range = doc.Range(
+                                range_start,
+                                range_end,
+                            )
+
+                        # Vale findings and ordinary paragraph-level structural findings
+                        # continue to attach to their full paragraph.
+                        else:
+                            target_paragraph = line_to_para_object.get(
+                                vale_line
+                            )
+
+                            if target_paragraph:
+                                target_range = target_paragraph.Range
+
+                        if target_range:
+                            severity = error.get(
+                                "Severity",
+                                "suggestion",
+                            ).upper()
+
+                            match_text = error.get("Match", "")
+                            message = error.get("Message", "")
+
+                            rule_id = error.get(
+                                "Check",
+                                "Clinical.UnknownRule",
+                            )
 
                             comment_text = (
                                 f"{rule_id} {severity} -> "
                                 f"'{match_text}': {message}"
-)
-                            
-                            doc.Comments.Add(Range=target_paragraph.Range, Text=comment_text)
-                            
-                        # Update progress for the final 33% of the bar
-                        progress_var.set(66 + ((idx / total_errors) * 34))
+                            )
+
+                            doc.Comments.Add(
+                                Range=target_range,
+                                Text=comment_text,
+                            )
+
+                        # Update progress for the final 33% of the bar.
+                        progress_var.set(
+                            66 + ((idx / total_errors) * 34)
+                        )
+
                         
             status_var.set("Saving audited document...")
             doc.SaveAs2(abs_output)
