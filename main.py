@@ -9,6 +9,7 @@ import json
 import os
 import sys
 import re
+import traceback
 from pathlib import Path
 from validators.abbreviationvalidator import (
     AbbreviationEntry,
@@ -85,6 +86,7 @@ def run_regression_gate() -> None:
         str(REGRESSION_TEST_RUNNER),
     ]
 
+    audit_stage = "Running Vale"
     process = subprocess.run(
         command,
         cwd=PROJECT_ROOT,
@@ -366,7 +368,7 @@ def build_paragraph_records(doc):
     """
 
     batch_parts: list[str] = []
-    line_to_paragraph: dict[int, Any] = {}
+    line_to_range: dict[int, tuple[int, int]] = {}
     paragraph_records: list[ParagraphRecord] = []
 
     current_line = 1
@@ -409,8 +411,16 @@ def build_paragraph_records(doc):
         )
 
         paragraph_records.append(record)
-        line_to_paragraph[current_line] = paragraph
+        line_to_range[current_line] = (
+            paragraph.Range.Start,
+            max(
+                paragraph.Range.Start,
+                paragraph.Range.End - 1,
+            ),
+        )
+
         batch_parts.append(normalized_text)
+
 
         current_line += 2
 
@@ -418,10 +428,11 @@ def build_paragraph_records(doc):
 
     return (
         batch_payload,
-        line_to_paragraph,
+        line_to_range,
         paragraph_records,
         total_paragraphs,
     )
+
 
 def add_typography_findings(
     doc,
@@ -517,31 +528,39 @@ def add_reference_findings(
         1,
         doc.Hyperlinks.Count + 1,
     ):
-        hyperlink = doc.Hyperlinks.Item(
-            hyperlink_index
-        )
+        try:
+            hyperlink = doc.Hyperlinks.Item(
+                hyperlink_index
+            )
 
-        address = str(
-            hyperlink.Address or ""
-        ).strip()
+            address = str(
+                hyperlink.Address or ""
+            ).strip()
 
-        if not address.lower().startswith(
-            ("http://", "https://")
-        ):
+            if not address.lower().startswith(
+                ("http://", "https://")
+            ):
+                continue
+
+            display_text = clean_text(
+                hyperlink.Range.Text
+            )
+
+            # A visible raw URL is already handled by
+            # Clinical.RawExternalURL. Avoid duplicate comments.
+            if display_text.lower().startswith(
+                ("http://", "https://", "www.")
+            ):
+                continue
+
+            hyperlink_start = hyperlink.Range.Start
+
+        except Exception as hyperlink_error:
+            print(
+                "Skipping unavailable Word hyperlink "
+                f"{hyperlink_index}: {hyperlink_error}"
+            )
             continue
-
-        display_text = clean_text(
-            hyperlink.Range.Text
-        )
-
-        # A visible raw URL is already handled by Clinical.RawExternalURL.
-        # Avoid generating duplicate comments for that same text.
-        if display_text.lower().startswith(
-            ("http://", "https://", "www.")
-        ):
-            continue
-
-        hyperlink_start = hyperlink.Range.Start
 
         target_record = next(
             (
@@ -566,6 +585,7 @@ def add_reference_findings(
                 address=address,
             )
         )
+
 
     return findings
 
@@ -1195,11 +1215,13 @@ def run_scan_thread(docx_path, output_path, status_var, progress_var, start_btn)
 
     word = None
     doc = None
+    audit_stage = "Starting audit"
     
     try:
         status_var.set("Running approved rule regression tests...")
         progress_var.set(0)
 
+        audit_stage = "Running regression tests"
         run_regression_gate()
 
         status_var.set("Regression tests passed. Launching Word...")
@@ -1209,14 +1231,18 @@ def run_scan_thread(docx_path, output_path, status_var, progress_var, start_btn)
         abs_output = os.path.abspath(output_path)
         
         status_var.set("Launching Word in the background...")
+
+        audit_stage = "Launching Microsoft Word"
         word = win32com.client.Dispatch("Word.Application")
         word.Visible = False
         
         try:
+            audit_stage = "Opening source document"
             doc = word.Documents.Open(abs_input)
+            audit_stage = "Extracting document paragraphs"
             (
                 batch_payload,
-                line_to_para_object,
+                line_to_range,
                 paragraph_records,
                 total_paragraphs,
             ) = build_paragraph_records(doc)
@@ -1226,10 +1252,23 @@ def run_scan_thread(docx_path, output_path, status_var, progress_var, start_btn)
             )
             progress_var.set(33)
 
-            structural_findings = add_structural_findings(
-                doc=doc,
-                paragraph_records=paragraph_records,
-            )
+            audit_stage = "Running structural validators"
+            try:
+                structural_findings = add_structural_findings(
+                    doc=doc,
+                    paragraph_records=paragraph_records,
+                )
+
+            except Exception as structural_error:
+                print(
+                    "Structural validation was skipped because Word returned "
+                    f"an error: {structural_error}"
+                )
+
+                print(traceback.format_exc())
+
+                structural_findings = []
+
 
             try:
                 candidate_records = [
@@ -1302,37 +1341,101 @@ def run_scan_thread(docx_path, output_path, status_var, progress_var, start_btn)
                 )
 
                 total_errors = len(errors)
-                
-                if total_errors > 0:
-                    for idx, error in enumerate(errors, start=1):
-                        vale_line = error.get("Line")
 
+                if total_errors > 0:
+                    def finding_start_position(
+                        finding: dict,
+                    ) -> int:
+                        """Return a stable position for descending comment insertion."""
+
+                        range_start = finding.get("RangeStart")
+
+                        if isinstance(range_start, int):
+                            return range_start
+
+                        line_number = finding.get("Line")
+
+                        paragraph_range = line_to_range.get(
+                            line_number
+                        )
+
+                        if paragraph_range:
+                            return paragraph_range[0]
+
+                        return 0
+
+                    # Add comments from the end of the document toward the beginning.
+                    # This minimizes the chance that Word updates positions before
+                    # earlier comments are anchored.
+                    ordered_errors = sorted(
+                        errors,
+                        key=finding_start_position,
+                        reverse=True,
+                    )
+
+                    audit_stage = "Inserting Word comments"
+                    for idx, error in enumerate(
+                        ordered_errors,
+                        start=1,
+                    ):
                         range_start = error.get("RangeStart")
                         range_end = error.get("RangeEnd")
 
                         target_range = None
 
-                        # Table and future exact-range structural findings use their
-                        # saved Word character-range coordinates.
+                        # Exact-range structural findings, such as table cells,
+                        # captions, footnotes, figures, and hyperlinks.
                         if (
                             isinstance(range_start, int)
                             and isinstance(range_end, int)
                             and range_end > range_start
                         ):
+                            document_end = doc.Content.End
+
+                            safe_start = max(
+                                0,
+                                min(range_start, document_end - 1),
+                            )
+
+                            safe_end = max(
+                                safe_start + 1,
+                                min(range_end, document_end),
+                            )
+
                             target_range = doc.Range(
-                                range_start,
-                                range_end,
+                                safe_start,
+                                safe_end,
                             )
 
-                        # Vale findings and ordinary paragraph-level structural findings
-                        # continue to attach to their full paragraph.
+                        # Vale and ordinary paragraph findings.
                         else:
-                            target_paragraph = line_to_para_object.get(
-                                vale_line
+                            line_number = error.get("Line")
+
+                            paragraph_range = line_to_range.get(
+                                line_number
                             )
 
-                            if target_paragraph:
-                                target_range = target_paragraph.Range
+                            if paragraph_range:
+                                paragraph_start, paragraph_end = (
+                                    paragraph_range
+                                )
+
+                                document_end = doc.Content.End
+
+                                safe_start = max(
+                                    0,
+                                    min(paragraph_start, document_end - 1),
+                                )
+
+                                safe_end = max(
+                                    safe_start + 1,
+                                    min(paragraph_end, document_end),
+                                )
+
+                                target_range = doc.Range(
+                                    safe_start,
+                                    safe_end,
+                                )
 
                         if target_range:
                             severity = error.get(
@@ -1353,10 +1456,17 @@ def run_scan_thread(docx_path, output_path, status_var, progress_var, start_btn)
                                 f"'{match_text}': {message}"
                             )
 
-                            doc.Comments.Add(
-                                Range=target_range,
-                                Text=comment_text,
-                            )
+                            try:
+                                doc.Comments.Add(
+                                    Range=target_range,
+                                    Text=comment_text,
+                                )
+
+                            except Exception as comment_error:
+                                print(
+                                    "Comment insertion skipped for "
+                                    f"{rule_id}: {comment_error}"
+                                )
 
                         # Update progress for the final 33% of the bar.
                         progress_var.set(
@@ -1365,23 +1475,66 @@ def run_scan_thread(docx_path, output_path, status_var, progress_var, start_btn)
 
                         
             status_var.set("Saving audited document...")
+            audit_stage = "Saving audited document"
             doc.SaveAs2(abs_output)
             status_var.set("Complete! Document is ready.")
             progress_var.set(100)
             messagebox.showinfo("Success", f"Scan complete.\nSaved to:\n{abs_output}")
             
         finally:
-            doc.Close(SaveChanges=False)
-            word.Quit()
+            if doc is not None:
+                try:
+                    doc.Close(SaveChanges=False)
+                except Exception as cleanup_error:
+                    print(
+                        "Word document cleanup warning: "
+                        f"{cleanup_error}"
+                    )
+
+            if word is not None:
+                try:
+                    word.Quit()
+                except Exception as cleanup_error:
+                    print(
+                        "Word application cleanup warning: "
+                        f"{cleanup_error}"
+                    )
             
-    except Exception as e:
-        status_var.set("Error occurred during scan.")
-        messagebox.showerror("Error", str(e))
+    except Exception as error:
+        status_var.set(
+            f"Error occurred during: {audit_stage}"
+        )
+
+        error_details = traceback.format_exc()
+
+        print(
+            f"AUDIT ERROR DURING {audit_stage}:"
+        )
+
+        print(error_details)
+
+        messagebox.showerror(
+            "Audit Error",
+            (
+                f"Audit failed during:\n"
+                f"{audit_stage}\n\n"
+                f"{error}\n\n"
+                "Detailed traceback was printed to the PowerShell window."
+            ),
+        )
+
     finally:
         # 2. We MUST uninitialize COM before the thread dies
         pythoncom.CoUninitialize()
         # Re-enable the start button
-        start_btn.config(state=tk.NORMAL)
+        try:
+            start_btn.config(state=tk.NORMAL)
+        except Exception as button_error:
+            print(
+                "GUI cleanup warning: "
+                f"{button_error}"
+            )
+
 
 # --- THE GUI BUILDER ---
 def select_input(entry_widget, output_entry_widget):
