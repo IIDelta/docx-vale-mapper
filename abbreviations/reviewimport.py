@@ -179,6 +179,7 @@ def apply_review_import(
     review_rows: list[ReviewImportRow],
     reviewer: str,
     decision_set: str,
+    source_prefix: str = "csv_review",
 ) -> dict[str, Any]:
     """Apply validated reviewer decisions to the reviewed registry."""
 
@@ -199,7 +200,7 @@ def apply_review_import(
 
         for review_row in review_rows:
             source_reference = (
-                f"csv_review:{reviewer_name}"
+                f"{source_prefix}:{reviewer_name}"
             )
 
             registry_id = upsert_registry_entry(
