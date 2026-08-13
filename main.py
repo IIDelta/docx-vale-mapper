@@ -21,15 +21,29 @@ from validators.abbreviationvalidator import (
 )
 from abbreviations.auditbridge import build_effective_policy
 from validators.findingmerge import merge_audit_findings
+from abbreviations.candidatefinder import (
+    TextRecord,
+    discover_candidates,
+    write_report as write_candidate_report,
+)
+from abbreviations.reviewwindow import open_review_window
+from abbreviations.reportpaths import (
+    candidate_report_path_for_document,
+)
+
 
 PROJECT_ROOT = Path(__file__).resolve().parent
+
 REGRESSION_TEST_RUNNER = PROJECT_ROOT / "tests" / "runregressiontests.py"
+
 ABBREVIATION_POLICY_PATH = (
     PROJECT_ROOT / "config" / "abbreviationpolicy.json"
 )
+
 ABBREVIATION_DATABASE_PATH = (
     PROJECT_ROOT / "data" / "abbreviations.sqlite"
 )
+
 
 def run_regression_gate() -> None:
     """Run all approved Vale fixtures before auditing a live document."""
@@ -449,6 +463,45 @@ def run_scan_thread(docx_path, output_path, status_var, progress_var, start_btn)
                 paragraph_records=paragraph_records,
             )
 
+            try:
+                candidate_records = [
+                    TextRecord(
+                        index=record.index,
+                        text=record.text,
+                    )
+                    for record in paragraph_records
+                ]
+
+                candidate_summaries = discover_candidates(
+                    database_path=ABBREVIATION_DATABASE_PATH,
+                    records=candidate_records,
+                )
+
+                candidate_report_path = (
+                    candidate_report_path_for_document(
+                        Path(abs_output)
+                    )
+                )
+
+                write_candidate_report(
+                    summaries=candidate_summaries,
+                    report_path=candidate_report_path,
+                )
+
+                print(
+                    "Candidate review report updated: "
+                    f"{candidate_report_path}"
+                )
+
+            except Exception as candidate_error:
+
+                # Candidate reporting is useful but must not block the primary
+                # Word audit if a noncritical reporting error occurs.
+                print(
+                    "Candidate review report was not generated: "
+                    f"{candidate_error}"
+                )
+
             status_var.set("Step 2/3: Executing Vale style scan...")
             process = subprocess.run(
                 [
@@ -568,10 +621,59 @@ def start_process(input_entry, output_entry, status_var, progress_var, start_btn
     )
     thread.start()
 
+
+def open_review_for_selected_output(
+    parent: tk.Misc,
+    output_entry,
+) -> None:
+    """
+    Open the candidate review window only for the selected audit output.
+
+    The review window must never silently display a stale report from
+    a different document.
+    """
+
+    output_value = output_entry.get().strip()
+
+    if not output_value:
+        messagebox.showinfo(
+            "Abbreviation Review",
+            (
+                "Select a document and run an audit before opening "
+                "the abbreviation review window."
+            ),
+            parent=parent,
+        )
+        return
+
+    output_path = Path(output_value)
+
+    report_path = candidate_report_path_for_document(
+        output_path
+    )
+
+    if not report_path.is_file():
+        messagebox.showinfo(
+            "Abbreviation Review",
+            (
+                "No abbreviation candidate report exists for this "
+                "audit output yet.\n\n"
+                "Run the audit first, then open the review window."
+            ),
+            parent=parent,
+        )
+        return
+
+    open_review_window(
+        parent=parent,
+        report_path=report_path,
+    )
+
+
 def build_gui():
     root = tk.Tk()
     root.title("Medical Writer - Vale Auditor")
-    root.geometry("600x300")
+    root.geometry("600x350")
     root.resizable(False, False)
     
     # Padding and layout configuration
@@ -606,7 +708,23 @@ def build_gui():
         command=lambda: start_process(input_entry, output_entry, status_var, progress_var, start_btn)
     )
     start_btn.grid(row=4, column=0, columnspan=3, pady=20)
-    
+
+    review_btn = ttk.Button(
+        frame,
+        text="Review Abbreviations",
+        command=lambda: open_review_for_selected_output(
+            parent=root,
+            output_entry=output_entry,
+        ),
+    )
+
+    review_btn.grid(
+        row=5,
+        column=0,
+        columnspan=3,
+        pady=(0, 10),
+    )
+
     root.mainloop()
 
 if __name__ == "__main__":
