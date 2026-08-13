@@ -142,20 +142,34 @@ def validate_abbreviation_list(
 
     duplicate_counts = Counter(abbreviations)
 
+    display_abbreviations: dict[str, str] = {}
+
+    for entry in cleaned_entries:
+        normalized = normalize_abbreviation(entry.abbreviation)
+
+        if normalized and normalized not in display_abbreviations:
+            display_abbreviations[normalized] = entry.abbreviation.strip()
+
     for abbreviation, count in sorted(duplicate_counts.items()):
         if count > 1:
+            display_value = display_abbreviations.get(
+                abbreviation,
+                abbreviation,
+            )
+
             findings.append(
                 make_finding(
                     check="Clinical.AbbreviationListDuplicate",
                     severity="error",
                     message=(
                         "Takeda abbreviation list: "
-                        f"'{abbreviation}' appears {count} times."
+                        f"'{display_value}' appears {count} times."
                     ),
-                    match=abbreviation,
+                    match=display_value,
                     paragraph=heading,
                 )
             )
+
 
     for entry in cleaned_entries:
         if entry.abbreviation.strip() and not entry.definition.strip():
