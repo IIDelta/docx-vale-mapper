@@ -5,6 +5,8 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import messagebox, ttk
 from typing import Any
+from abbreviations.legacyimport import normalize_token
+from abbreviations.reviewactions import apply_local_decision
 
 
 BUCKET_ORDER = [
@@ -116,6 +118,162 @@ def filter_candidates(
     )
 
 
+def review_bucket_for_resolution(
+    resolution: dict[str, Any],
+    occurrence_count: int,
+    inline_definition_count: int,
+) -> str:
+    """Return the display bucket for an updated registry resolution."""
+
+    if not resolution.get("found", False):
+        if inline_definition_count > 0 or occurrence_count >= 2:
+            return "likely_unknown"
+
+        return "possible_unknown"
+
+    status = resolution.get("status", "")
+
+    if status == "approved_expand":
+        return "known_expand"
+
+    if status == "approved_no_expand":
+        return "protected"
+
+    if status == "approved_list_only":
+        return "known_list_only"
+
+    if status == "deprecated":
+        return "deprecated"
+
+    if status == "ambiguous":
+        return "ambiguous"
+
+    if status == "reviewed_candidate":
+        return "reviewed_candidate"
+
+    if status == "ignored":
+        return "ignored"
+
+    return "possible_unknown"
+
+
+def confidence_for_resolution(
+    resolution: dict[str, Any],
+    occurrence_count: int,
+    inline_definition_count: int,
+) -> str:
+    """Return display confidence for an updated registry resolution."""
+
+    if resolution.get("found", False):
+        return "high"
+
+    if inline_definition_count > 0 or occurrence_count >= 2:
+        return "likely"
+
+    return "possible"
+
+
+def update_candidate_payload(
+    payload: dict[str, Any],
+    token: str,
+    resolution: dict[str, Any],
+) -> bool:
+    """
+    Update one candidate in an in-memory candidate report payload.
+
+    Returns True when the candidate was found and updated.
+    """
+
+    normalized_token = normalize_token(token)
+
+    for candidate in payload.get("candidates", []):
+        if (
+            normalize_token(
+                candidate.get("token", "")
+            )
+            != normalized_token
+        ):
+            continue
+
+        occurrence_count = int(
+            candidate.get("count", 0)
+        )
+
+        inline_definition_count = int(
+            candidate.get(
+                "inline_definition_count",
+                0,
+            )
+        )
+
+        candidate["resolution"] = resolution
+
+        candidate["review_bucket"] = (
+            review_bucket_for_resolution(
+                resolution=resolution,
+                occurrence_count=occurrence_count,
+                inline_definition_count=inline_definition_count,
+            )
+        )
+
+        candidate["confidence"] = confidence_for_resolution(
+            resolution=resolution,
+            occurrence_count=occurrence_count,
+            inline_definition_count=inline_definition_count,
+        )
+
+        return True
+
+    return False
+
+
+def update_candidate_report_resolution(
+    report_path: Path,
+    token: str,
+    resolution: dict[str, Any],
+) -> bool:
+    """
+    Update one candidate report entry after a local GUI decision.
+
+    The candidate report remains tied to the audited document, but its
+    resolution metadata is refreshed immediately after the decision.
+    """
+
+    with report_path.open(
+        encoding="utf-8",
+    ) as input_file:
+        payload = json.load(input_file)
+
+    updated = update_candidate_payload(
+        payload=payload,
+        token=token,
+        resolution=resolution,
+    )
+
+    if not updated:
+        return False
+
+    temporary_path = report_path.with_suffix(
+        report_path.suffix + ".tmp"
+    )
+
+    with temporary_path.open(
+        "w",
+        encoding="utf-8",
+    ) as output_file:
+        json.dump(
+            payload,
+            output_file,
+            indent=2,
+            ensure_ascii=False,
+        )
+        output_file.write("\n")
+
+    temporary_path.replace(report_path)
+
+    return True
+
+
 class AbbreviationReviewWindow(tk.Toplevel):
     """Read-only candidate review window."""
 
@@ -123,10 +281,12 @@ class AbbreviationReviewWindow(tk.Toplevel):
         self,
         parent: tk.Misc,
         report_path: Path,
+        database_path: Path,
     ) -> None:
         super().__init__(parent)
 
         self.report_path = report_path
+        self.database_path = database_path
         self.candidates: list[dict[str, Any]] = []
         self.visible_candidates: dict[str, dict[str, Any]] = {}
 
@@ -139,7 +299,12 @@ class AbbreviationReviewWindow(tk.Toplevel):
         self.summary_var = tk.StringVar(
             value="No candidate report loaded."
         )
-
+        self.decision_var = tk.StringVar(value="")
+        self.definition_var = tk.StringVar(value="")
+        self.replacement_var = tk.StringVar(value="")
+        self.action_status_var = tk.StringVar(
+            value="Select a candidate to create a local decision."
+        )
         self.build_window()
         self.load_report()
 
@@ -360,6 +525,155 @@ class AbbreviationReviewWindow(tk.Toplevel):
             side=tk.RIGHT,
             fill=tk.Y,
         )
+        action_frame = ttk.LabelFrame(
+            outer_frame,
+            text="Local Registry Decision",
+            padding="8",
+        )
+
+        action_frame.pack(
+            fill=tk.X,
+            pady=(10, 0),
+        )
+
+        decision_values = [
+            "",
+            "approved_expand",
+            "approved_no_expand",
+            "approved_list_only",
+            "reviewed_candidate",
+            "deprecated",
+            "ambiguous",
+            "ignored",
+        ]
+
+        ttk.Label(
+            action_frame,
+            text="Decision:",
+        ).grid(
+            row=0,
+            column=0,
+            sticky=tk.W,
+            padx=(0, 6),
+            pady=(0, 6),
+        )
+
+        self.decision_combo = ttk.Combobox(
+            action_frame,
+            textvariable=self.decision_var,
+            values=decision_values,
+            state="readonly",
+            width=24,
+        )
+
+        self.decision_combo.grid(
+            row=0,
+            column=1,
+            sticky=tk.W,
+            padx=(0, 16),
+            pady=(0, 6),
+        )
+
+        ttk.Label(
+            action_frame,
+            text="Definition:",
+        ).grid(
+            row=0,
+            column=2,
+            sticky=tk.W,
+            padx=(0, 6),
+            pady=(0, 6),
+        )
+
+        self.definition_entry = ttk.Entry(
+            action_frame,
+            textvariable=self.definition_var,
+            width=48,
+        )
+
+        self.definition_entry.grid(
+            row=0,
+            column=3,
+            sticky=tk.EW,
+            pady=(0, 6),
+        )
+
+        ttk.Label(
+            action_frame,
+            text="Replacement:",
+        ).grid(
+            row=1,
+            column=0,
+            sticky=tk.W,
+            padx=(0, 6),
+        )
+
+        self.replacement_entry = ttk.Entry(
+            action_frame,
+            textvariable=self.replacement_var,
+            width=24,
+        )
+
+        self.replacement_entry.grid(
+            row=1,
+            column=1,
+            sticky=tk.W,
+            padx=(0, 16),
+        )
+
+        ttk.Label(
+            action_frame,
+            text="Notes:",
+        ).grid(
+            row=1,
+            column=2,
+            sticky=tk.NW,
+            padx=(0, 6),
+        )
+
+        self.decision_notes_text = tk.Text(
+            action_frame,
+            height=3,
+            wrap=tk.WORD,
+        )
+
+        self.decision_notes_text.grid(
+            row=1,
+            column=3,
+            sticky=tk.EW,
+        )
+
+        self.apply_decision_button = ttk.Button(
+            action_frame,
+            text="Apply Local Decision",
+            command=self.apply_selected_decision,
+        )
+
+        self.apply_decision_button.grid(
+            row=2,
+            column=0,
+            columnspan=2,
+            sticky=tk.W,
+            pady=(8, 0),
+        )
+
+        ttk.Label(
+            action_frame,
+            textvariable=self.action_status_var,
+        ).grid(
+            row=2,
+            column=2,
+            columnspan=2,
+            sticky=tk.W,
+            padx=(12, 0),
+            pady=(8, 0),
+        )
+
+        action_frame.columnconfigure(
+            3,
+            weight=1,
+        )
+
 
     def load_report(self) -> None:
         """Load the latest candidate report from disk."""
@@ -448,12 +762,165 @@ class AbbreviationReviewWindow(tk.Toplevel):
 
         self.clear_details()
 
+    def clear_decision_form(self) -> None:
+        """Clear editable local-decision controls."""
+
+        self.decision_var.set("")
+        self.definition_var.set("")
+        self.replacement_var.set("")
+
+        self.decision_notes_text.delete(
+            "1.0",
+            tk.END,
+        )
+
+        self.action_status_var.set(
+            "Select a candidate to create a local decision."
+        )
+
+    def populate_decision_form(
+        self,
+        candidate: dict[str, Any],
+    ) -> None:
+        """Prepopulate decision controls from current registry data."""
+
+        resolution = candidate.get("resolution") or {}
+
+        status = resolution.get("status", "")
+
+        if status == "unknown":
+            status = ""
+
+        self.decision_var.set(status)
+
+        self.definition_var.set(
+            resolution.get(
+                "preferred_definition",
+                "",
+            )
+        )
+
+        self.replacement_var.set(
+            resolution.get(
+                "replacement_token",
+                "",
+            )
+        )
+
+        self.decision_notes_text.delete(
+            "1.0",
+            tk.END,
+        )
+
+        self.decision_notes_text.insert(
+            "1.0",
+            resolution.get("notes", ""),
+        )
+
+        self.action_status_var.set(
+            "Edit the decision fields, then apply the local decision."
+        )
+
+    def apply_selected_decision(self) -> None:
+        """Validate and apply a decision for the selected candidate."""
+
+        selected_items = self.tree.selection()
+
+        if not selected_items:
+            messagebox.showwarning(
+                "No Candidate Selected",
+                "Select a candidate before applying a decision.",
+                parent=self,
+            )
+            return
+
+        item_id = selected_items[0]
+
+        candidate = self.visible_candidates.get(item_id)
+
+        if candidate is None:
+            messagebox.showerror(
+                "Candidate Error",
+                "The selected candidate could not be loaded.",
+                parent=self,
+            )
+            return
+
+        decision = self.decision_var.get().strip()
+
+        if not decision:
+            messagebox.showwarning(
+                "Decision Required",
+                "Choose a decision before applying changes.",
+                parent=self,
+            )
+            return
+
+        try:
+            resolution, report = apply_local_decision(
+                database_path=self.database_path,
+                token=candidate.get("token", ""),
+                status=decision,
+                definition=self.definition_var.get(),
+                replacement_token=self.replacement_var.get(),
+                notes=self.decision_notes_text.get(
+                    "1.0",
+                    tk.END,
+                ),
+            )
+
+            updated = update_candidate_report_resolution(
+                report_path=self.report_path,
+                token=candidate.get("token", ""),
+                resolution=resolution.to_dict(),
+            )
+
+        except (OSError, ValueError) as error:
+            messagebox.showerror(
+                "Decision Error",
+                str(error),
+                parent=self,
+            )
+            return
+
+        if not updated:
+            messagebox.showwarning(
+                "Report Refresh Warning",
+                (
+                    "The local decision was saved, but the "
+                    "candidate report could not be updated."
+                ),
+                parent=self,
+            )
+
+        self.action_status_var.set(
+            f"Saved {decision} decision for "
+            f"{candidate.get('token', '')}."
+        )
+
+        self.load_report()
+
+        messagebox.showinfo(
+            "Decision Saved",
+            (
+                f"Local decision saved for "
+                f"{candidate.get('token', '')}.\n\n"
+                f"Applied status: {resolution.status}\n"
+                f"Decision set: {report['decision_set']}"
+            ),
+            parent=self,
+        )
+
+
     def clear_details(self) -> None:
-        """Clear the selected-candidate detail panel."""
+        """Clear selected-candidate details and decision controls."""
 
         self.details_text.configure(state=tk.NORMAL)
         self.details_text.delete("1.0", tk.END)
         self.details_text.configure(state=tk.DISABLED)
+
+        self.clear_decision_form()
+
 
     def show_selected_details(
         self,
@@ -533,15 +1000,19 @@ class AbbreviationReviewWindow(tk.Toplevel):
             "\n".join(lines),
         )
         self.details_text.configure(state=tk.DISABLED)
+        self.populate_decision_form(candidate)
 
 
 def open_review_window(
     parent: tk.Misc,
     report_path: Path,
+    database_path: Path,
 ) -> AbbreviationReviewWindow:
     """Open the read-only review window."""
 
     return AbbreviationReviewWindow(
         parent=parent,
         report_path=report_path,
+        database_path=database_path,
     )
+

@@ -667,7 +667,9 @@ def open_review_for_selected_output(
     open_review_window(
         parent=parent,
         report_path=report_path,
+        database_path=ABBREVIATION_DATABASE_PATH,
     )
+
 
 
 def build_gui():

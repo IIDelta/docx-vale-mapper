@@ -8,11 +8,69 @@ from pathlib import Path
 from abbreviations.reviewwindow import (
     filter_candidates,
     load_candidates,
+    update_candidate_payload,
 )
 
 
 class ReviewWindowTests(unittest.TestCase):
     """Tests for B4.1 read-only review-window helpers."""
+
+    def test_candidate_resolution_update_refreshes_bucket(
+        self,
+    ) -> None:
+        payload = {
+            "candidate_count": 1,
+            "candidates": [
+                {
+                    "token": "XYZ",
+                    "count": 2,
+                    "inline_definition_count": 0,
+                    "review_bucket": "likely_unknown",
+                    "confidence": "likely",
+                    "resolution": {
+                        "found": False,
+                        "status": "unknown",
+                    },
+                }
+            ],
+        }
+
+        resolution = {
+            "found": True,
+            "token": "XYZ",
+            "status": "ignored",
+            "preferred_definition": "",
+            "replacement_token": "",
+            "source_reference": "gui_review:test_user",
+            "notes": "Fixture-only placeholder.",
+            "enforcement_action": "ignore",
+        }
+
+        updated = update_candidate_payload(
+            payload=payload,
+            token="XYZ",
+            resolution=resolution,
+        )
+
+        self.assertTrue(updated)
+
+        candidate = payload["candidates"][0]
+
+        self.assertEqual(
+            candidate["review_bucket"],
+            "ignored",
+        )
+
+        self.assertEqual(
+            candidate["confidence"],
+            "high",
+        )
+
+        self.assertEqual(
+            candidate["resolution"]["status"],
+            "ignored",
+        )
+
 
     def create_candidates(self) -> list[dict]:
         """Create representative candidate records."""
