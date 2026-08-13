@@ -79,6 +79,12 @@
       "Clinical.EmailFormat": 1,
       "Clinical.DashSpacing": 4
     }
+  },
+  "a73compoundformatting.md": {
+    "expected_total": 11,
+    "expected_checks": {
+      "Clinical.CompoundFormatting": 11
+    }
   }
 }
 
