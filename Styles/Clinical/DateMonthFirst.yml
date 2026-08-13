@@ -1,0 +1,12 @@
+# Style guide:
+# Use dd Month yyyy date format in running text.
+
+extends: substitution
+message: "Style guide date format: Use '%s' instead of '%s'."
+level: error
+ignorecase: false
+capitalize: false
+action:
+  name: replace
+swap:
+  '\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+([0-3]?\d),\s+(\d{4})\b': '$2 $1 $3'

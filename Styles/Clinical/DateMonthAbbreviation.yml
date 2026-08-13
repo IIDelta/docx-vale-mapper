@@ -1,0 +1,10 @@
+# Style guide:
+# Spell out months in running text.
+# Tables and figures may use abbreviated months, so this is a warning.
+
+extends: existence
+message: "Style guide date format: Spell out the month in running text, unless this is a table or figure."
+level: warning
+nonword: true
+tokens:
+  - '\b(?:Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\.?\s+[0-3]?\d,\s+\d{4}\b'

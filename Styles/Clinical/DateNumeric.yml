@@ -1,0 +1,10 @@
+# Style guide:
+# Use dd Month yyyy. Avoid numeric-only date formats.
+
+extends: existence
+message: "Style guide date format: Use dd Month yyyy, for example, 28 March 2025. Avoid numeric-only dates."
+level: error
+nonword: true
+tokens:
+  - '\b(?:0?[1-9]|[12]\d|3[01])[/-](?:0?[1-9]|1[0-2])[/-]\d{2,4}\b'
+  - '\b\d{4}[/-](?:0?[1-9]|1[0-2])[/-](?:0?[1-9]|[12]\d|3[01])\b'

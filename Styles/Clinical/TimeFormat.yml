@@ -1,0 +1,16 @@
+# Style guide:
+# Use AM and PM without periods.
+# Include a space before AM or PM.
+
+extends: substitution
+message: "Style guide time format: Use '%s' instead of '%s'."
+level: error
+ignorecase: false
+capitalize: false
+nonword: true
+action:
+  name: replace
+swap:
+  '\b(\d{1,2}(?::\d{2})?)\s*a\.m\.(?=\s|$|[,;:])': '$1 AM'
+  '\b(\d{1,2}(?::\d{2})?)\s*p\.m\.(?=\s|$|[,;:])': '$1 PM'
+  '\b(\d{1,2}(?::\d{2})?)(AM|PM)\b': '$1 $2'

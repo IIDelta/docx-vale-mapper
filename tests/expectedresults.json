@@ -34,5 +34,15 @@
       "Clinical.PlainLanguageAbbreviations": 3,
       "Clinical.DottedAbbreviations": 4
     }
+  },
+  "a5datetime.md": {
+    "expected_total": 5,
+    "expected_checks": {
+      "Clinical.DateMonthFirst": 1,
+      "Clinical.DateNumeric": 1,
+      "Clinical.DateMonthAbbreviation": 1,
+      "Clinical.TimeFormat": 2
+    }
   }
 }
+
