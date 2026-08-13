@@ -13,6 +13,12 @@ from abbreviations.listgenerator import (
     load_candidate_report as load_generation_candidate_report,
     write_generation_report,
 )
+from abbreviations.listinserter import (
+    insert_plan_at_active_selection,
+)
+from abbreviations.reportpaths import (
+    document_path_for_candidate_report,
+)
 
 
 BUCKET_ORDER = [
@@ -690,10 +696,35 @@ class AbbreviationReviewWindow(tk.Toplevel):
             pady=(8, 0),
         )
 
+        self.insert_list_button = ttk.Button(
+            action_frame,
+            text="Insert List at Word Cursor",
+            command=self.insert_list_at_word_cursor,
+        )
+
+        self.insert_list_button.grid(
+            row=2,
+            column=2,
+            sticky=tk.W,
+            padx=(12, 0),
+            pady=(8, 0),
+        )
+
+        ttk.Label(
+            action_frame,
+            textvariable=self.action_status_var,
+        ).grid(
+            row=3,
+            column=0,
+            columnspan=4,
+            sticky=tk.W,
+            pady=(8, 0),
+        )
+
         action_frame.columnconfigure(
             3,
             weight=1,
-        )
+        )      
 
 
     def load_report(self) -> None:
@@ -1046,6 +1077,115 @@ class AbbreviationReviewWindow(tk.Toplevel):
                 f"{len(plan.excluded_tokens)}\n\n"
                 f"DOCX:\n{output_path}\n\n"
                 f"Plan report:\n{generation_report_path}"
+            ),
+            parent=self,
+        )
+
+
+    def insert_list_at_word_cursor(self) -> None:
+        """Insert the reviewed list at the active Word cursor."""
+
+        try:
+            candidate_report = load_generation_candidate_report(
+                self.report_path
+            )
+
+            plan = build_generation_plan(
+                database_path=self.database_path,
+                candidate_report=candidate_report,
+            )
+
+        except (OSError, ValueError, json.JSONDecodeError) as error:
+            messagebox.showerror(
+                "List Insertion Error",
+                str(error),
+                parent=self,
+            )
+            return
+
+        if not plan.can_generate:
+            blocker_text = format_generation_blockers(
+                plan.blockers
+            )
+
+            messagebox.showwarning(
+                "List Insertion Blocked",
+                (
+                    "The list cannot be inserted until the "
+                    "following candidates are resolved:\n\n"
+                    f"{blocker_text}"
+                ),
+                parent=self,
+            )
+
+            self.action_status_var.set(
+                f"List insertion blocked by "
+                f"{len(plan.blockers)} candidate(s)."
+            )
+
+            return
+
+        try:
+            expected_document_path = (
+                document_path_for_candidate_report(
+                    self.report_path
+                )
+            )
+
+        except ValueError as error:
+            messagebox.showerror(
+                "List Insertion Error",
+                str(error),
+                parent=self,
+            )
+            return
+
+        confirmed = messagebox.askyesno(
+            "Insert List at Word Cursor",
+            (
+                "Before continuing:\n\n"
+                "1. Open the audited output document in Word.\n"
+                "2. Place the cursor where the list belongs.\n"
+                "3. Ensure no existing text is selected.\n\n"
+                "The active Word document must match:\n"
+                f"{expected_document_path.name}\n\n"
+                "Continue with insertion?"
+            ),
+            parent=self,
+        )
+
+        if not confirmed:
+            self.action_status_var.set(
+                "List insertion cancelled."
+            )
+            return
+
+        try:
+            result = insert_plan_at_active_selection(
+                plan=plan,
+                expected_document_path=expected_document_path,
+            )
+
+        except (OSError, RuntimeError, ValueError) as error:
+            messagebox.showerror(
+                "List Insertion Error",
+                str(error),
+                parent=self,
+            )
+            return
+
+        self.action_status_var.set(
+            f"Inserted {result['entry_count']} list entry/entries."
+        )
+
+        messagebox.showinfo(
+            "List Inserted",
+            (
+                "List of Abbreviations inserted successfully.\n\n"
+                f"Document:\n{result['document_path']}\n\n"
+                f"Entries inserted: {result['entry_count']}\n"
+                f"Excluded protected or ignored terms: "
+                f"{result['excluded_count']}"
             ),
             parent=self,
         )

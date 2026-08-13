@@ -5,6 +5,7 @@ from pathlib import Path
 
 from abbreviations.reportpaths import (
     candidate_report_path_for_document,
+    document_path_for_candidate_report,
 )
 
 
@@ -43,6 +44,25 @@ class ReportPathTests(unittest.TestCase):
             report_path.name,
             "report.final.abbreviationreview.json",
         )
+
+        def test_document_path_is_recovered_from_report_path(
+            self,
+        ) -> None:
+            report_path = Path(
+                "C:/Documents/"
+                "protocol_AUDITED.abbreviationreview.json"
+            )
+
+            document_path = document_path_for_candidate_report(
+                report_path
+            )
+
+            self.assertEqual(
+                document_path,
+                Path(
+                    "C:/Documents/protocol_AUDITED.docx"
+                ),
+            )
 
 
 if __name__ == "__main__":
