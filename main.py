@@ -44,6 +44,25 @@ from validators.tablevalidator import (
     TableCellRecord,
     validate_table_cells,
 )
+from validators.captionfootnotevalidator import (
+    CaptionRecord,
+    FootnoteRecord,
+    validate_captions,
+    validate_footnotes,
+)
+from validators.captionfootnotevalidator import (
+    CaptionRecord,
+)
+from validators.figurevalidator import (
+    FigureRecord,
+    validate_figures,
+)
+from validators.appendixvalidator import (
+    AppendixElementRecord,
+    ELEMENT_LABEL_PATTERN,
+    find_appendix_context,
+    validate_appendix_elements,
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 
@@ -658,6 +677,429 @@ def add_table_findings(
     return findings
 
 
+def add_caption_footnote_findings(
+    doc,
+    paragraph_records: list[ParagraphRecord],
+) -> list[dict]:
+    """
+    Extract table captions and recognizable footnote text.
+
+    Captions outside tables are detected from the closest paragraph
+    immediately preceding each table. Captions inside tables and
+    footnotes use exact cell ranges.
+    """
+
+    findings: list[dict] = []
+
+    sorted_records = sorted(
+        paragraph_records,
+        key=lambda record: record.range_start,
+    )
+
+    def record_for_position(
+        position: int,
+    ) -> ParagraphRecord | None:
+        for record in sorted_records:
+            if (
+                record.range_start
+                <= position
+                <= record.range_end
+            ):
+                return record
+
+        if not sorted_records:
+            return None
+
+        return min(
+            sorted_records,
+            key=lambda record: abs(
+                record.range_start - position
+            ),
+        )
+
+    captions: list[CaptionRecord] = []
+    footnotes: list[FootnoteRecord] = []
+
+    for table_index in range(
+        1,
+        doc.Tables.Count + 1,
+    ):
+        table = doc.Tables.Item(table_index)
+
+        preceding_records = [
+            record
+            for record in sorted_records
+            if record.range_end <= table.Range.Start
+        ]
+
+
+        if preceding_records:
+            preceding_record = preceding_records[-1]
+
+            if preceding_record.text.strip().lower().startswith(
+                "table "
+            ):
+                captions.append(
+                    CaptionRecord(
+                        kind="Table",
+                        text=preceding_record.text,
+                        inside_table=False,
+                        paragraph=preceding_record,
+                        range_start=preceding_record.range_start,
+                        range_end=preceding_record.range_end,
+                    )
+                )
+
+        for row_index in range(
+            1,
+            table.Rows.Count + 1,
+        ):
+            row = table.Rows.Item(row_index)
+
+            try:
+                cell_count = row.Cells.Count
+            except Exception:
+                continue
+
+            for column_index in range(
+                1,
+                cell_count + 1,
+            ):
+                try:
+                    word_cell = row.Cells.Item(
+                        column_index
+                    )
+
+                    cell_text = clean_text(
+                        word_cell.Range.Text
+                    )
+
+                    paragraph_record = record_for_position(
+                        word_cell.Range.Start
+                    )
+
+                except Exception:
+                    continue
+
+                if (
+                    not cell_text
+                    or paragraph_record is None
+                ):
+                    continue
+
+                range_start = word_cell.Range.Start
+                range_end = max(
+                    range_start,
+                    word_cell.Range.End - 1,
+                )
+
+                if cell_text.lower().startswith("table "):
+                    captions.append(
+                        CaptionRecord(
+                            kind="Table",
+                            text=cell_text,
+                            inside_table=True,
+                            paragraph=paragraph_record,
+                            range_start=range_start,
+                            range_end=range_end,
+                        )
+                    )
+
+                footnotes.append(
+                    FootnoteRecord(
+                        text=cell_text,
+                        paragraph=paragraph_record,
+                        range_start=range_start,
+                        range_end=range_end,
+                    )
+                )
+
+    findings.extend(
+        validate_captions(captions)
+    )
+
+    findings.extend(
+        validate_footnotes(footnotes)
+    )
+
+    return findings
+
+
+def add_figure_findings(
+    doc,
+    paragraph_records: list[ParagraphRecord],
+) -> list[dict]:
+    """
+    Extract figure anchors and nearby figure captions.
+    """
+
+    findings: list[dict] = []
+
+    sorted_records = sorted(
+        paragraph_records,
+        key=lambda record: record.range_start,
+    )
+
+    def record_for_position(
+        position: int,
+    ) -> ParagraphRecord | None:
+        for record in sorted_records:
+            if (
+                record.range_start
+                <= position
+                <= record.range_end
+            ):
+                return record
+
+        if not sorted_records:
+            return None
+
+        return min(
+            sorted_records,
+            key=lambda record: abs(
+                record.range_start - position
+            ),
+        )
+
+    captions: list[CaptionRecord] = []
+
+    for record in sorted_records:
+        if record.text.strip().lower().startswith(
+            "figure "
+        ):
+            captions.append(
+                CaptionRecord(
+                    kind="Figure",
+                    text=record.text,
+                    inside_table=False,
+                    paragraph=record,
+                    range_start=record.range_start,
+                    range_end=record.range_end,
+                )
+            )
+
+    figures: list[FigureRecord] = []
+    seen_positions: set[int] = set()
+
+    for inline_index in range(
+        1,
+        doc.InlineShapes.Count + 1,
+    ):
+        inline_shape = doc.InlineShapes.Item(
+            inline_index
+        )
+
+        position = inline_shape.Range.Start
+
+        if position in seen_positions:
+            continue
+
+        paragraph_record = record_for_position(
+            position
+        )
+
+        if paragraph_record is None:
+            continue
+
+        seen_positions.add(position)
+
+        figures.append(
+            FigureRecord(
+                figure_index=len(figures) + 1,
+                position=position,
+                paragraph=paragraph_record,
+            )
+        )
+
+    for shape_index in range(
+        1,
+        doc.Shapes.Count + 1,
+    ):
+        shape = doc.Shapes.Item(shape_index)
+
+        try:
+            position = shape.Anchor.Start
+        except Exception:
+            continue
+
+        if position in seen_positions:
+            continue
+
+        paragraph_record = record_for_position(
+            position
+        )
+
+        if paragraph_record is None:
+            continue
+
+        seen_positions.add(position)
+
+        figures.append(
+            FigureRecord(
+                figure_index=len(figures) + 1,
+                position=position,
+                paragraph=paragraph_record,
+            )
+        )
+
+    findings.extend(
+        validate_figures(
+            captions=captions,
+            figures=figures,
+        )
+    )
+
+    return findings
+
+
+def add_appendix_findings(
+    doc,
+    paragraph_records: list[ParagraphRecord],
+) -> list[dict]:
+    """
+    Extract appendix table/figure labels from paragraphs and table cells.
+    """
+
+    findings: list[dict] = []
+
+    appendix_context = find_appendix_context(
+        paragraph_records
+    )
+
+    if not appendix_context:
+        return findings
+
+    sorted_records = sorted(
+        paragraph_records,
+        key=lambda record: record.range_start,
+    )
+
+    def record_for_position(
+        position: int,
+    ) -> ParagraphRecord | None:
+        for record in sorted_records:
+            if (
+                record.range_start
+                <= position
+                <= record.range_end
+            ):
+                return record
+
+        if not sorted_records:
+            return None
+
+        return min(
+            sorted_records,
+            key=lambda record: abs(
+                record.range_start - position
+            ),
+        )
+
+    elements: list[AppendixElementRecord] = []
+
+    def add_element(
+        text: str,
+        paragraph_record: ParagraphRecord,
+        range_start: int,
+        range_end: int,
+    ) -> None:
+        label_match = ELEMENT_LABEL_PATTERN.match(
+            text
+        )
+
+        if label_match is None:
+            return
+
+        appendix_letter = appendix_context.get(
+            paragraph_record.index,
+            "",
+        )
+
+        if not appendix_letter:
+            return
+
+        elements.append(
+            AppendixElementRecord(
+                kind=label_match.group("kind").title(),
+                label=label_match.group("label"),
+                text=text,
+                appendix_letter=appendix_letter,
+                paragraph=paragraph_record,
+                range_start=range_start,
+                range_end=range_end,
+            )
+        )
+
+    for record in paragraph_records:
+        add_element(
+            text=record.text,
+            paragraph_record=record,
+            range_start=record.range_start,
+            range_end=record.range_end,
+        )
+
+    for table_index in range(
+        1,
+        doc.Tables.Count + 1,
+    ):
+        table = doc.Tables.Item(table_index)
+
+        for row_index in range(
+            1,
+            table.Rows.Count + 1,
+        ):
+            row = table.Rows.Item(row_index)
+
+            try:
+                cell_count = row.Cells.Count
+            except Exception:
+                continue
+
+            for column_index in range(
+                1,
+                cell_count + 1,
+            ):
+                try:
+                    word_cell = row.Cells.Item(
+                        column_index
+                    )
+
+                    cell_text = clean_text(
+                        word_cell.Range.Text
+                    )
+
+                    paragraph_record = record_for_position(
+                        word_cell.Range.Start
+                    )
+
+                except Exception:
+                    continue
+
+                if (
+                    not cell_text
+                    or paragraph_record is None
+                ):
+                    continue
+
+                add_element(
+                    text=cell_text,
+                    paragraph_record=paragraph_record,
+                    range_start=word_cell.Range.Start,
+                    range_end=max(
+                        word_cell.Range.Start,
+                        word_cell.Range.End - 1,
+                    ),
+                )
+
+    findings.extend(
+        validate_appendix_elements(
+            elements
+        )
+    )
+
+    return findings
+
+
 def add_structural_findings(
     doc,
     paragraph_records: list[ParagraphRecord],
@@ -719,6 +1161,24 @@ def add_structural_findings(
 
     findings.extend(
         add_table_findings(
+            doc=doc,
+            paragraph_records=paragraph_records,
+        )
+    )
+    findings.extend(
+        add_caption_footnote_findings(
+            doc=doc,
+            paragraph_records=paragraph_records,
+        )
+    )
+    findings.extend(
+        add_figure_findings(
+            doc=doc,
+            paragraph_records=paragraph_records,
+        )
+    )
+    findings.extend(
+        add_appendix_findings(
             doc=doc,
             paragraph_records=paragraph_records,
         )

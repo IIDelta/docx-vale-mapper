@@ -9,7 +9,7 @@ capitalize: false
 action:
   name: replace
 swap:
-  '\btable\s+(\d+(?:\.[a-z])?)\b': 'Table $1'
+  '(?<![Ss]ource )\btable\s+(\d+(?:\.[a-z])?)\b': 'Table $1'
   '\bfigure\s+(\d+(?:\.[a-z])?)\b': 'Figure $1'
   '\bappendix\s+([A-Z])\b': 'Appendix $1'
   '\bcohort\s+(\d+)\b': 'Cohort $1'
