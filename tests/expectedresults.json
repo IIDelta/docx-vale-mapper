@@ -61,6 +61,14 @@
       "Clinical.TrademarkSymbols": 1,
       "Clinical.Ampersand": 1
     }
+  },
+  "a6spellingcapitalization.md": {
+    "expected_total": 17,
+    "expected_checks": {
+      "Clinical.Eponyms": 4,
+      "Clinical.AmericanSpellingReview": 4,
+      "Clinical.LabelCapitalization": 9
+    }
   }
 }
 

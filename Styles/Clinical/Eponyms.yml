@@ -1,0 +1,15 @@
+# Style guide:
+# Use nonpossessive eponymous terms in most medical contexts.
+
+extends: substitution
+message: "Style guide eponym: Use '%s' instead of '%s'."
+level: warning
+ignorecase: true
+capitalize: true
+action:
+  name: replace
+swap:
+  'Alzheimer[''’]s disease': Alzheimer disease
+  'Parkinson[''’]s disease': Parkinson disease
+  'Fisher[''’]s exact test': Fisher exact test
+  'Down[''’]s syndrome': Down syndrome

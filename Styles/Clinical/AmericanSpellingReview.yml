@@ -1,0 +1,10 @@
+# Style guide:
+# Use American spelling unless British spelling is required in a formal
+# name, document title, MedDRA term, or other approved exception.
+
+extends: existence
+message: "Style guide spelling review: Use American spelling unless this is a formal name, MedDRA term, or other approved exception."
+level: warning
+ignorecase: true
+tokens:
+  - '\b(?:behaviour|centre|colour|paediatric|programme)\b'

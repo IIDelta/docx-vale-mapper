@@ -1,0 +1,20 @@
+# Style guide:
+# Capitalize labels followed by numerals or sequential letters.
+
+extends: substitution
+message: "Style guide capitalization: Use '%s' instead of '%s'."
+level: error
+ignorecase: false
+capitalize: false
+action:
+  name: replace
+swap:
+  '\btable\s+(\d+(?:\.[a-z])?)\b': 'Table $1'
+  '\bfigure\s+(\d+(?:\.[a-z])?)\b': 'Figure $1'
+  '\bappendix\s+([A-Z])\b': 'Appendix $1'
+  '\bcohort\s+(\d+)\b': 'Cohort $1'
+  '\bday\s+(\d+)\b': 'Day $1'
+  '\bvisit\s+(\d+)\b': 'Visit $1'
+  '\bgrade\s+(\d+)\b': 'Grade $1'
+  '\bversion\s+(\d+)\b': 'Version $1'
+  '\btrial\s+([A-Z]{1,12}-?\d+(?:-\d+)*)\b': 'Trial $1'
