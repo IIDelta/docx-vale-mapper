@@ -69,6 +69,16 @@
       "Clinical.AmericanSpellingReview": 4,
       "Clinical.LabelCapitalization": 9
     }
+  },
+  "a71punctuationmechanics.md": {
+    "expected_total": 8,
+    "expected_checks": {
+      "Clinical.MultiplePunctuationSpaces": 1,
+      "Clinical.ForwardSlashReview": 1,
+      "Clinical.NumeralApostrophes": 1,
+      "Clinical.EmailFormat": 1,
+      "Clinical.DashSpacing": 4
+    }
   }
 }
 

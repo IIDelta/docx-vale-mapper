@@ -1,0 +1,9 @@
+# Style guide:
+# Do not use a forward slash to represent alternatives such as and/or.
+
+extends: existence
+message: "Style guide punctuation review: Avoid 'and/or'. Rewrite the phrase using clear wording."
+level: warning
+nonword: true
+tokens:
+  - '\band/or\b'

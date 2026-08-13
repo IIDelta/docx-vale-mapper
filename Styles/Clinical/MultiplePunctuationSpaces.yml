@@ -1,0 +1,11 @@
+# Style guide:
+# Use one typewritten space after punctuation marks.
+
+extends: substitution
+message: "Style guide punctuation: Replace the multiple-space sequence after punctuation with one space."
+level: warning
+nonword: true
+action:
+  name: replace
+swap:
+  '([.?!:;]) {2,}': '$1 '

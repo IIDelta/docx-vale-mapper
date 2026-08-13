@@ -1,0 +1,12 @@
+# Style guide:
+# Use email as one word without a hyphen.
+
+extends: substitution
+message: "Style guide spelling: Use '%s' instead of '%s'."
+level: error
+ignorecase: true
+capitalize: true
+action:
+  name: replace
+swap:
+  e-mail: email

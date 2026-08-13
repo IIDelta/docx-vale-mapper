@@ -1,0 +1,12 @@
+# Style guide:
+# Do not use an apostrophe to form the plural of numerals.
+
+extends: substitution
+message: "Style guide apostrophe format: Use '%s' instead of '%s'."
+level: error
+ignorecase: false
+capitalize: false
+action:
+  name: replace
+swap:
+  "\\b(\\d+)[’']s\\b": "$1s"

@@ -1,0 +1,13 @@
+# Style guide:
+# Use the em dash character rather than two hyphens.
+# Do not include spaces around em dashes.
+
+extends: substitution
+message: "Style guide dash format: Use '%s' instead of '%s'."
+level: warning
+nonword: true
+action:
+  name: replace
+swap:
+  '\s--\s': '—'
+  '\s—\s': '—'
