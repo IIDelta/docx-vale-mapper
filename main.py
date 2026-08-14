@@ -65,6 +65,8 @@ from validators.appendixvalidator import (
     validate_appendix_elements,
 )
 from validators.valespan import (
+    resolve_match_offsets,
+    vale_match_occurrence_index,
     vale_span_to_word_range,
 )
 from validators.contextvalidator import (
@@ -77,6 +79,13 @@ from validators.contextvalidator import (
 from validators.findingfilter import (
     deduplicate_findings,
     filter_findings_by_context,
+)
+from collections import Counter
+from validators.auditprofile import (
+    ADVANCED_AUDIT,
+    STANDARD_AUDIT,
+    is_advanced_profile,
+    normalize_audit_profile,
 )
 
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -420,6 +429,7 @@ def build_paragraph_records(doc):
 
     batch_parts: list[str] = []
     line_to_range: dict[int, tuple[int, int]] = {}
+    line_to_vale_text: dict[int, str] = {}
     paragraph_records: list[ParagraphRecord] = []
 
     current_line = 1
@@ -590,6 +600,7 @@ def build_paragraph_records(doc):
     return (
         batch_payload,
         line_to_range,
+        line_to_vale_text,
         paragraph_records,
         total_paragraphs,
     )
@@ -1455,13 +1466,14 @@ def add_appendix_findings(
 def add_structural_findings(
     doc,
     paragraph_records: list[ParagraphRecord],
+    audit_profile: str,
 ) -> list[dict]:
     """
-    Run all structural validators.
+    Run structural validators according to the audit profile.
 
-    Each validator is isolated so that one complex Word object, such as
-    a vertically merged table or deleted hyperlink, cannot disable all
-    other structural validation.
+    Standard Audit runs only trusted structural checks.
+    Advanced Structural Review additionally runs experimental
+    list/table/figure/appendix validators.
     """
 
     findings: list[dict] = []
@@ -1470,12 +1482,7 @@ def add_structural_findings(
         check_name: str,
         callback,
     ) -> list[dict]:
-        """
-        Run one structural validator safely.
-
-        If Word COM raises an error, log the failure and return no
-        findings for only that validator.
-        """
+        """Run one validator without disabling the full audit."""
 
         try:
             result = callback()
@@ -1493,10 +1500,7 @@ def add_structural_findings(
             return []
 
     def run_abbreviation_checks() -> list[dict]:
-        """
-        Run abbreviation, List of Abbreviations, and deprecated-term
-        checks as one controlled group.
-        """
+        """Run abbreviation and List of Abbreviations checks."""
 
         policy = build_effective_policy(
             base_policy_path=ABBREVIATION_POLICY_PATH,
@@ -1539,7 +1543,7 @@ def add_structural_findings(
 
         return abbreviation_findings
 
-    # A4: Abbreviations, List of Abbreviations, and deprecated terms.
+    # Trusted structural checks: enabled in all profiles.
     findings.extend(
         safe_structural_check(
             "abbreviation validation",
@@ -1547,17 +1551,6 @@ def add_structural_findings(
         )
     )
 
-    # A7.2: Word lists and manually typed bullet lists.
-    findings.extend(
-        safe_structural_check(
-            "list validation",
-            lambda: validate_list_structure(
-                paragraphs=paragraph_records,
-            ),
-        )
-    )
-
-    # A8.1: Italics, roman Latin terms, and radiolabel formatting.
     findings.extend(
         safe_structural_check(
             "typography validation",
@@ -1568,7 +1561,6 @@ def add_structural_findings(
         )
     )
 
-    # A8.2: Raw URLs and active external Word hyperlinks.
     findings.extend(
         safe_structural_check(
             "reference validation",
@@ -1579,55 +1571,202 @@ def add_structural_findings(
         )
     )
 
-    # A9.1: Table heading case and table zero values.
-    findings.extend(
-        safe_structural_check(
-            "table validation",
-            lambda: add_table_findings(
-                doc=doc,
-                paragraph_records=paragraph_records,
-            ),
+    # Advanced checks: opt-in only.
+    if is_advanced_profile(audit_profile):
+        print(
+            "Advanced Structural Review enabled."
         )
-    )
 
-    # A9.2: Table captions and table footnotes.
-    findings.extend(
-        safe_structural_check(
-            "caption and footnote validation",
-            lambda: add_caption_footnote_findings(
-                doc=doc,
-                paragraph_records=paragraph_records,
-            ),
+        findings.extend(
+            safe_structural_check(
+                "list validation",
+                lambda: validate_list_structure(
+                    paragraphs=paragraph_records,
+                ),
+            )
         )
-    )
 
-    # A9.3: Figure titles, labels, duplicate numbering, and visual review.
-    findings.extend(
-        safe_structural_check(
-            "figure validation",
-            lambda: add_figure_findings(
-                doc=doc,
-                paragraph_records=paragraph_records,
-            ),
+        findings.extend(
+            safe_structural_check(
+                "table validation",
+                lambda: add_table_findings(
+                    doc=doc,
+                    paragraph_records=paragraph_records,
+                ),
+            )
         )
-    )
 
-    # A9.4: Appendix table and figure prefix/sequence checks.
-    findings.extend(
-        safe_structural_check(
-            "appendix validation",
-            lambda: add_appendix_findings(
-                doc=doc,
-                paragraph_records=paragraph_records,
-            ),
+        findings.extend(
+            safe_structural_check(
+                "caption and footnote validation",
+                lambda: add_caption_footnote_findings(
+                    doc=doc,
+                    paragraph_records=paragraph_records,
+                ),
+            )
         )
-    )
+
+        findings.extend(
+            safe_structural_check(
+                "figure validation",
+                lambda: add_figure_findings(
+                    doc=doc,
+                    paragraph_records=paragraph_records,
+                ),
+            )
+        )
+
+        findings.extend(
+            safe_structural_check(
+                "appendix validation",
+                lambda: add_appendix_findings(
+                    doc=doc,
+                    paragraph_records=paragraph_records,
+                ),
+            )
+        )
+
+    else:
+        print(
+            "Standard Audit enabled: list, table, figure, "
+            "caption, footnote, and appendix checks are "
+            "disabled."
+        )
 
     return findings
 
 
+def write_audit_summary(
+    output_path: Path,
+    audit_profile: str,
+    vale_findings: list[dict],
+    structural_findings: list[dict],
+    final_findings: list[dict],
+    suppressed_findings,
+) -> None:
+    """
+    Write a local audit summary sidecar for review and diagnostics.
+    """
+
+    summary_path = output_path.with_suffix(
+        ".audit_summary.json"
+    )
+
+    summary = {
+        "audit_profile": audit_profile,
+        "vale_finding_count": len(vale_findings),
+        "structural_finding_count": len(
+            structural_findings
+        ),
+        "final_finding_count": len(final_findings),
+        "final_rule_counts": dict(
+            sorted(
+                Counter(
+                    finding.get("Check", "")
+                    for finding in final_findings
+                ).items()
+            )
+        ),
+        "suppressed_finding_count": sum(
+            suppressed_findings.values()
+        ),
+        "suppressed_rule_counts": dict(
+            sorted(suppressed_findings.items())
+        ),
+    }
+
+    with summary_path.open(
+        "w",
+        encoding="utf-8",
+    ) as output_file:
+        json.dump(
+            summary,
+            output_file,
+            indent=2,
+            ensure_ascii=False,
+        )
+        output_file.write("\n")
+
+    print(
+        f"Audit summary written: {summary_path}"
+    )
+
+
+def find_vale_match_range(
+    doc,
+    paragraph_start: int,
+    paragraph_end: int,
+    match_text: str,
+    occurrence_index: int = 0,
+) -> Any:
+    """
+    Use Word Find to locate the exact Vale match.
+
+    Supports repeated text by selecting the requested occurrence index.
+    Long match strings are not sent to Word Find because Word has a
+    string-parameter length limit.
+    """
+
+    if not match_text.strip():
+        return None
+
+    if len(match_text) > 200:
+        return None
+
+    try:
+        search_start = paragraph_start
+        search_end = paragraph_end
+        current_occurrence = 0
+
+        while search_start < search_end:
+            search_range = doc.Range(
+                search_start,
+                search_end,
+            )
+
+            find = search_range.Find
+
+            find.ClearFormatting()
+            find.Replacement.ClearFormatting()
+
+            find.Text = match_text
+            find.Forward = True
+            find.Wrap = 0
+            find.Format = False
+            find.MatchCase = False
+            find.MatchWholeWord = False
+            find.MatchWildcards = False
+
+            found = find.Execute()
+
+            if not found:
+                return None
+
+            if current_occurrence == occurrence_index:
+                return search_range.Duplicate
+
+            current_occurrence += 1
+            search_start = search_range.End
+
+    except Exception as find_error:
+        print(
+            "Word Find fallback unavailable for "
+            f"'{match_text}': {find_error}"
+        )
+
+    return None
+
+
 # --- THE CORE ENGINE ---
-def run_scan_thread(docx_path, output_path, status_var, progress_var, start_btn):
+def run_scan_thread(
+    docx_path,
+    output_path,
+    status_var,
+    progress_var,
+    start_btn,
+    audit_profile,
+    ):
+
     """This runs in the background so the GUI doesn't freeze."""
     # 1. We MUST initialize COM for this specific background thread
     pythoncom.CoInitialize() 
@@ -1662,6 +1801,7 @@ def run_scan_thread(docx_path, output_path, status_var, progress_var, start_btn)
             (
                 batch_payload,
                 line_to_range,
+                line_to_vale_text,
                 paragraph_records,
                 total_paragraphs,
             ) = build_paragraph_records(doc)
@@ -1676,7 +1816,9 @@ def run_scan_thread(docx_path, output_path, status_var, progress_var, start_btn)
                 structural_findings = add_structural_findings(
                     doc=doc,
                     paragraph_records=paragraph_records,
+                    audit_profile=audit_profile,
                 )
+
 
             except Exception as structural_error:
                 print(
@@ -1763,6 +1905,14 @@ def run_scan_thread(docx_path, output_path, status_var, progress_var, start_btn)
 
                 errors = deduplicate_findings(
                     context_filtered_errors
+                )
+                write_audit_summary(
+                    output_path=Path(abs_output),
+                    audit_profile=audit_profile,
+                    vale_findings=vale_errors,
+                    structural_findings=structural_findings,
+                    final_findings=errors,
+                    suppressed_findings=suppressed_findings,
                 )
 
                 if suppressed_findings:
@@ -1873,32 +2023,79 @@ def run_scan_thread(docx_path, output_path, status_var, progress_var, start_btn)
                                     paragraph_range
                                 )
 
-                                vale_span_range = vale_span_to_word_range(
-                                    paragraph_start=paragraph_start,
-                                    paragraph_end=paragraph_end,
+                                match_text = str(
+                                    error.get("Match", "")
+                                )
+
+                                vale_text = line_to_vale_text.get(
+                                    line_number,
+                                    "",
+                                )
+
+                                occurrence_index = vale_match_occurrence_index(
+                                    vale_text=vale_text,
+                                    match_text=match_text,
                                     span=error.get("Span"),
                                 )
 
-                                if vale_span_range is not None:
-                                    safe_start, safe_end = vale_span_range
+                                word_find_range = find_vale_match_range(
+                                    doc=doc,
+                                    paragraph_start=paragraph_start,
+                                    paragraph_end=paragraph_end,
+                                    match_text=match_text,
+                                    occurrence_index=occurrence_index,
+                                )
+
+                                if word_find_range is not None:
+                                    target_range = word_find_range
 
                                 else:
-                                    document_end = doc.Content.End
-
-                                    safe_start = max(
-                                        0,
-                                        min(paragraph_start, document_end - 1),
+                                    match_offsets = resolve_match_offsets(
+                                        vale_text=vale_text,
+                                        match_text=match_text,
+                                        span=error.get("Span"),
                                     )
 
-                                    safe_end = max(
-                                        safe_start + 1,
-                                        min(paragraph_end, document_end),
+                                    if match_offsets is not None:
+                                        match_start, match_end = match_offsets
+
+                                        safe_start = paragraph_start + match_start
+                                        safe_end = paragraph_start + match_end
+
+                                    else:
+                                        vale_span_range = vale_span_to_word_range(
+                                            paragraph_start=paragraph_start,
+                                            paragraph_end=paragraph_end,
+                                            span=error.get("Span"),
+                                        )
+
+                                        if vale_span_range is not None:
+                                            safe_start, safe_end = vale_span_range
+
+                                        else:
+                                            document_end = doc.Content.End
+
+                                            safe_start = max(
+                                                0,
+                                                min(
+                                                    paragraph_start,
+                                                    document_end - 1,
+                                                ),
+                                            )
+
+                                            safe_end = max(
+                                                safe_start + 1,
+                                                min(
+                                                    paragraph_end,
+                                                    document_end,
+                                                ),
+                                            )
+
+                                    target_range = doc.Range(
+                                        safe_start,
+                                        safe_end,
                                     )
 
-                                target_range = doc.Range(
-                                    safe_start,
-                                    safe_end,
-                                )
 
                         if target_range:
                             severity = error.get(
@@ -1908,6 +2105,45 @@ def run_scan_thread(docx_path, output_path, status_var, progress_var, start_btn)
 
                             match_text = error.get("Match", "")
                             message = error.get("Message", "")
+
+                            rule_id = error.get(
+                                "Check",
+                                "Clinical.UnknownRule",
+                            )
+
+                            # Vale findings include a Span array. Structural findings do not.
+                            # For Vale findings, only insert a comment when the selected Word
+                            # range actually contains the expected matched text.
+                            if (
+                                isinstance(error.get("Span"), list)
+                                and match_text
+                            ):
+                                actual_range_text = (
+                                    target_range.Text
+                                    .replace("\r", "")
+                                    .replace("\x07", "")
+                                    .replace("\x0b", "")
+                                    .replace("\n", "")
+                                    .replace("\xa0", " ")
+                                    .strip()
+                                    .casefold()
+                                )
+
+                                expected_match_text = (
+                                    str(match_text)
+                                    .replace("\xa0", " ")
+                                    .strip()
+                                    .casefold()
+                                )
+
+                                if actual_range_text != expected_match_text:
+                                    print(
+                                        "Skipping imprecise Vale comment anchor: "
+                                        f"{rule_id} -> '{match_text}' "
+                                        f"(Word range was '{target_range.Text}')"
+                                    )
+                                    continue
+
 
                             rule_id = error.get(
                                 "Check",
@@ -2020,29 +2256,70 @@ def select_output(entry_widget):
         entry_widget.delete(0, tk.END)
         entry_widget.insert(0, filepath)
 
-def start_process(input_entry, output_entry, status_var, progress_var, start_btn):
-    in_path = input_entry.get()
-    out_path = output_entry.get()
-    
+
+def start_process(
+    input_entry,
+    output_entry,
+    status_var,
+    progress_var,
+    start_btn,
+    audit_profile_var,
+):
+    in_path = input_entry.get().strip()
+    out_path = output_entry.get().strip()
+
     if not in_path or not out_path:
-        messagebox.showwarning("Missing Files", "Please select both input and output files.")
-        return
-        
-    if not os.path.exists(in_path):
-        messagebox.showerror("File Not Found", "The selected input file does not exist.")
+        messagebox.showwarning(
+            "Missing Files",
+            "Please select both input and output files.",
+        )
         return
 
-    # Disable button to prevent multiple clicks
-    start_btn.config(state=tk.DISABLED)
-    status_var.set("Starting...")
-    progress_var.set(0)
-    
-    # Launch the background thread
-    thread = threading.Thread(
-        target=run_scan_thread, 
-        args=(in_path, out_path, status_var, progress_var, start_btn),
-        daemon=True
+    if not os.path.exists(in_path):
+        messagebox.showerror(
+            "File Not Found",
+            "The selected input file does not exist.",
+        )
+        return
+
+    if os.path.abspath(in_path) == os.path.abspath(out_path):
+        messagebox.showerror(
+            "Invalid Output",
+            (
+                "The output file must be different from the "
+                "source document."
+            ),
+        )
+        return
+
+    # Convert the user-facing GUI selection into the internal
+    # audit profile value before starting the thread.
+    audit_profile = normalize_audit_profile(
+        audit_profile_var.get()
     )
+
+    # Disable button to prevent multiple concurrent audits.
+    start_btn.config(state=tk.DISABLED)
+
+    status_var.set(
+        f"Starting {audit_profile} audit..."
+    )
+
+    progress_var.set(0)
+
+    thread = threading.Thread(
+        target=run_scan_thread,
+        args=(
+            in_path,
+            out_path,
+            status_var,
+            progress_var,
+            start_btn,
+            audit_profile,
+        ),
+        daemon=True,
+    )
+
     thread.start()
 
 
@@ -2095,46 +2372,182 @@ def open_review_for_selected_output(
     )
 
 
-
 def build_gui():
     root = tk.Tk()
+
     root.title("Medical Writer - Vale Auditor")
-    root.geometry("600x350")
+    root.geometry("600x400")
     root.resizable(False, False)
-    
+
     # Padding and layout configuration
-    frame = ttk.Frame(root, padding="20")
-    frame.pack(fill=tk.BOTH, expand=True)
-    
+    frame = ttk.Frame(
+        root,
+        padding="20",
+    )
+
+    frame.pack(
+        fill=tk.BOTH,
+        expand=True,
+    )
+
     # Input Row
-    ttk.Label(frame, text="Target Protocol (.docx):").grid(row=0, column=0, sticky=tk.W, pady=(0, 5))
-    input_entry = ttk.Entry(frame, width=50)
-    input_entry.grid(row=0, column=1, padx=10, pady=(0, 5))
-    ttk.Button(frame, text="Browse", command=lambda: select_input(input_entry, output_entry)).grid(row=0, column=2, pady=(0, 5))
-    
+    ttk.Label(
+        frame,
+        text="Target Protocol (.docx):",
+    ).grid(
+        row=0,
+        column=0,
+        sticky=tk.W,
+        pady=(0, 5),
+    )
+
+    input_entry = ttk.Entry(
+        frame,
+        width=50,
+    )
+
+    input_entry.grid(
+        row=0,
+        column=1,
+        padx=10,
+        pady=(0, 5),
+    )
+
+    ttk.Button(
+        frame,
+        text="Browse",
+        command=lambda: select_input(
+            input_entry,
+            output_entry,
+        ),
+    ).grid(
+        row=0,
+        column=2,
+        pady=(0, 5),
+    )
+
     # Output Row
-    ttk.Label(frame, text="Output Audited File:").grid(row=1, column=0, sticky=tk.W, pady=10)
-    output_entry = ttk.Entry(frame, width=50)
-    output_entry.grid(row=1, column=1, padx=10, pady=10)
-    ttk.Button(frame, text="Browse", command=lambda: select_output(output_entry)).grid(row=1, column=2, pady=10)
-    
+    ttk.Label(
+        frame,
+        text="Output Audited File:",
+    ).grid(
+        row=1,
+        column=0,
+        sticky=tk.W,
+        pady=10,
+    )
+
+    output_entry = ttk.Entry(
+        frame,
+        width=50,
+    )
+
+    output_entry.grid(
+        row=1,
+        column=1,
+        padx=10,
+        pady=10,
+    )
+
+    ttk.Button(
+        frame,
+        text="Browse",
+        command=lambda: select_output(
+            output_entry
+        ),
+    ).grid(
+        row=1,
+        column=2,
+        pady=10,
+    )
+
+    # Audit Profile Row
+    audit_profile_var = tk.StringVar(
+        value="Standard Audit"
+    )
+
+    ttk.Label(
+        frame,
+        text="Audit Profile:",
+    ).grid(
+        row=2,
+        column=0,
+        sticky=tk.W,
+        pady=(5, 5),
+    )
+
+    audit_profile_combo = ttk.Combobox(
+        frame,
+        textvariable=audit_profile_var,
+        values=[
+            "Standard Audit",
+            "Advanced Structural Review",
+        ],
+        state="readonly",
+        width=30,
+    )
+
+    audit_profile_combo.grid(
+        row=2,
+        column=1,
+        sticky=tk.W,
+        padx=10,
+        pady=(5, 5),
+    )
+
     # Progress and Status
     status_var = tk.StringVar()
     status_var.set("Ready.")
-    ttk.Label(frame, textvariable=status_var).grid(row=2, column=0, columnspan=3, sticky=tk.W, pady=(20, 5))
-    
-    progress_var = tk.DoubleVar()
-    progress_bar = ttk.Progressbar(frame, variable=progress_var, maximum=100)
-    progress_bar.grid(row=3, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=5)
-    
-    # Action Button
-    start_btn = ttk.Button(
-        frame, 
-        text="Run Audit", 
-        command=lambda: start_process(input_entry, output_entry, status_var, progress_var, start_btn)
-    )
-    start_btn.grid(row=4, column=0, columnspan=3, pady=20)
 
+    ttk.Label(
+        frame,
+        textvariable=status_var,
+    ).grid(
+        row=3,
+        column=0,
+        columnspan=3,
+        sticky=tk.W,
+        pady=(20, 5),
+    )
+
+    progress_var = tk.DoubleVar()
+
+    progress_bar = ttk.Progressbar(
+        frame,
+        variable=progress_var,
+        maximum=100,
+    )
+
+    progress_bar.grid(
+        row=4,
+        column=0,
+        columnspan=3,
+        sticky=(tk.W, tk.E),
+        pady=5,
+    )
+
+    # Run Audit Button
+    start_btn = ttk.Button(
+        frame,
+        text="Run Audit",
+        command=lambda: start_process(
+            input_entry,
+            output_entry,
+            status_var,
+            progress_var,
+            start_btn,
+            audit_profile_var,
+        ),
+    )
+
+    start_btn.grid(
+        row=5,
+        column=0,
+        columnspan=3,
+        pady=20,
+    )
+
+    # Abbreviation Review Button 
     review_btn = ttk.Button(
         frame,
         text="Review Abbreviations",
@@ -2145,13 +2558,14 @@ def build_gui():
     )
 
     review_btn.grid(
-        row=5,
+        row=6,
         column=0,
         columnspan=3,
         pady=(0, 10),
     )
 
     root.mainloop()
+
 
 if __name__ == "__main__":
     build_gui()

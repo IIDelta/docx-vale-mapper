@@ -42,3 +42,134 @@ def vale_span_to_word_range(
     )
 
     return safe_start, safe_end
+
+
+def resolve_match_offsets(
+    vale_text: str,
+    match_text: str,
+    span,
+) -> tuple[int, int] | None:
+    """
+    Locate the Vale Match text in the exact Vale paragraph input.
+
+    Vale spans can drift in complex Word content containing fields,
+    nonbreaking spaces, hidden characters, or mixed formatting.
+    This function finds all matching text instances and selects the
+    occurrence nearest the reported Vale span.
+    """
+
+    if not vale_text or not match_text:
+        return None
+
+    normalized_text = vale_text.casefold()
+    normalized_match = match_text.casefold()
+
+    positions: list[int] = []
+
+    start_position = 0
+
+    while True:
+        found_position = normalized_text.find(
+            normalized_match,
+            start_position,
+        )
+
+        if found_position < 0:
+            break
+
+        positions.append(found_position)
+
+        start_position = (
+            found_position
+            + max(1, len(normalized_match))
+        )
+
+    if not positions:
+        return None
+
+    expected_position = 0
+
+    if (
+        isinstance(span, list)
+        and len(span) == 2
+        and isinstance(span[0], int)
+    ):
+        expected_position = max(
+            0,
+            span[0] - 1,
+        )
+
+    best_position = min(
+        positions,
+        key=lambda position: abs(
+            position - expected_position
+        ),
+    )
+
+    return (
+        best_position,
+        best_position + len(match_text),
+    )
+
+
+def vale_match_occurrence_index(
+    vale_text: str,
+    match_text: str,
+    span,
+) -> int:
+    """
+    Return the zero-based occurrence index of a Vale match.
+
+    This lets Word Find select the correct repeated occurrence within
+    a paragraph rather than always selecting the first one.
+    """
+
+    if not vale_text or not match_text:
+        return 0
+
+    normalized_text = vale_text.casefold()
+    normalized_match = match_text.casefold()
+
+    positions: list[int] = []
+
+    start_position = 0
+
+    while True:
+        found_position = normalized_text.find(
+            normalized_match,
+            start_position,
+        )
+
+        if found_position < 0:
+            break
+
+        positions.append(found_position)
+
+        start_position = (
+            found_position
+            + max(1, len(normalized_match))
+        )
+
+    if not positions:
+        return 0
+
+    expected_position = 0
+
+    if (
+        isinstance(span, list)
+        and len(span) == 2
+        and isinstance(span[0], int)
+    ):
+        expected_position = max(
+            0,
+            span[0] - 1,
+        )
+
+    best_index = min(
+        range(len(positions)),
+        key=lambda index: abs(
+            positions[index] - expected_position
+        ),
+    )
+
+    return best_index

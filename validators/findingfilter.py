@@ -49,6 +49,15 @@ TABLE_DATA_RULES = {
     "Clinical.TableZeroFormat",
 }
 
+ALWAYS_SUPPRESS_RULES = {
+    # Low-value and currently unreliable in complex Word content.
+    "Clinical.MultiplePunctuationSpaces",
+}
+
+ABBREVIATION_HEADING_RULES = {
+    "Clinical.AbbreviationMissingFromList",
+    "Clinical.AbbreviationRedefinedInText",
+}
 
 SUPPRESSED_ZONES_FOR_BODY_RULES = {
     "title_page",
@@ -80,6 +89,12 @@ def filter_findings_by_context(
 
     for finding in findings:
         rule_id = finding.get("Check", "")
+        if rule_id in ALWAYS_SUPPRESS_RULES:
+            suppressed[
+                f"{rule_id}:production_safe"
+            ] += 1
+            continue
+
         line_number = finding.get("Line")
 
         record = record_by_line.get(line_number)
@@ -95,6 +110,15 @@ def filter_findings_by_context(
         ):
             suppressed[
                 f"{rule_id}:{record.content_zone}"
+            ] += 1
+            continue
+
+        if (
+            rule_id in ABBREVIATION_HEADING_RULES
+            and record.content_zone == "heading"
+        ):
+            suppressed[
+                f"{rule_id}:heading"
             ] += 1
             continue
 
