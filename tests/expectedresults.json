@@ -92,6 +92,12 @@
       "Clinical.ReferenceLabels": 1,
       "Clinical.TrialAliasFormat": 1
     }
+  },
+  "a102clinicaldescriptors.md": {
+    "expected_total": 8,
+    "expected_checks": {
+      "Clinical.ClinicalDescriptorCase": 8
+    }
   }
 }
 

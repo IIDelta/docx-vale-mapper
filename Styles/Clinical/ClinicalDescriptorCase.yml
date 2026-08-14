@@ -1,0 +1,22 @@
+# Style guide:
+# Do not capitalize clinical trial visits, periods, phases,
+# populations, cohorts, arms, and similar descriptors when used
+# generally or without a numeral or sequential letter.
+
+extends: substitution
+message: "Style guide capitalization: Use '%s' instead of '%s' in general clinical-trial prose."
+level: warning
+ignorecase: false
+capitalize: false
+action:
+  name: replace
+swap:
+  '\bduring Screening\b': during screening
+  '\bat Baseline\b': at baseline
+  '\bduring the Treatment Period\b': during the treatment period
+  '\bduring the Pretreatment Period\b': during the pretreatment period
+  '\bin the Maintenance Phase\b': in the maintenance phase
+  '\bentered the Maintenance Phase\b': entered the maintenance phase
+  '\bin the Safety Analysis Set\b': in the safety analysis set
+  '\bin the Intent-to-Treat Population\b': in the intent-to-treat population
+  '\bat the End-of-Trial Visit\b': at the end-of-trial visit
