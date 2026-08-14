@@ -98,6 +98,11 @@ from runtime.auditmanifest import (
     build_audit_manifest,
     write_audit_manifest,
 )
+from runtime.commentbudget import (
+    apply_comment_budget,
+    load_comment_budget,
+    write_comment_queue,
+)
 from runtime.preflight import (
     format_preflight_failure,
     run_preflight,
@@ -2113,6 +2118,41 @@ def run_scan_thread(
         inserted_comment_range_keys: set[
             tuple[str, int, int]
         ] = set()
+
+        comment_budget = load_comment_budget(
+            PROJECT_ROOT / "config" / "commentbudget.json"
+        )
+        selected_errors, deferred_findings = apply_comment_budget(
+            findings=errors,
+            budget=comment_budget,
+        )
+        for deferred_finding in deferred_findings:
+            deferred_reason = deferred_finding.get(
+                "DeferredReason", "comment_budget_unknown"
+            )
+            comment_metrics["skipped_comment_reasons"][
+                deferred_reason
+            ] += 1
+        if comment_budget["write_full_review_queue"]:
+            queue_path = write_comment_queue(
+                output_path=audited_output_path,
+                all_findings=errors,
+                selected_findings=selected_errors,
+                deferred_findings=deferred_findings,
+                budget=comment_budget,
+            )
+            print(f"Comment review queue written: {queue_path}")
+        ordered_errors = sorted(
+            selected_errors,
+            key=finding_start_position,
+            reverse=True,
+        )
+        total_errors = len(ordered_errors)
+        print(
+            f"Comment budget: {len(errors)} candidates; "
+            f"{total_errors} selected; "
+            f"{len(deferred_findings)} deferred."
+        )
 
         for idx, error in enumerate(
             ordered_errors,

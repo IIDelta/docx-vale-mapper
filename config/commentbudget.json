@@ -1,0 +1,10 @@
+{
+  "max_comments": 150,
+  "max_comments_per_rule": 30,
+  "severity_order": [
+    "error",
+    "warning",
+    "suggestion"
+  ],
+  "write_full_review_queue": true
+}
