@@ -320,6 +320,46 @@ class AbbreviationValidatorTests(unittest.TestCase):
             "XYZ EOS FAS CFR FDA",
         )
 
+    def test_plural_abbreviation_is_covered_by_singular_list_entry(
+    self,
+    ) -> None:
+        paragraphs = [
+            record(
+                1,
+                "LIST OF ABBREVIATIONS",
+            ),
+            record(
+                2,
+                "Adverse events (AEs) were reviewed.",
+            ),
+        ]
+
+        entries = [
+            AbbreviationEntry(
+                abbreviation="AE",
+                definition="adverse event",
+                source_label="row 1",
+            )
+        ]
+
+        findings = validate_first_use(
+            paragraphs=paragraphs,
+            policy=self.policy,
+            has_abbreviation_list=True,
+            abbreviation_entries=entries,
+            list_heading=paragraphs[0],
+        )
+
+        checks = {
+            finding["Check"]
+            for finding in findings
+        }
+
+        self.assertNotIn(
+            "Clinical.AbbreviationMissingFromList",
+            checks,
+        )
+
 
 
 if __name__ == "__main__":

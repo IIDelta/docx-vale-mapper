@@ -54,6 +54,37 @@ def normalize_abbreviation(value: str) -> str:
 
     return re.sub(r"\s+", " ", value.strip()).casefold()
 
+def abbreviation_is_listed(
+    normalized_abbreviation: str,
+    listed_abbreviations: set[str],
+) -> bool:
+    """
+    Return True when an abbreviation is listed directly or through a
+    simple singular/plural alias.
+
+    Examples:
+        AE  covers AEs
+        PRO covers PROs
+        SAE covers SAEs
+    """
+
+    if normalized_abbreviation in listed_abbreviations:
+        return True
+
+    if (
+        normalized_abbreviation.endswith("s")
+        and normalized_abbreviation[:-1]
+        in listed_abbreviations
+    ):
+        return True
+
+    if (
+        normalized_abbreviation + "s"
+        in listed_abbreviations
+    ):
+        return True
+
+    return False
 
 def clean_text(value: str) -> str:
     """
@@ -343,7 +374,10 @@ def validate_first_use(
             continue
 
         if has_abbreviation_list:
-            if normalized_abbreviation not in listed_abbreviations:
+            if not abbreviation_is_listed(
+                normalized_abbreviation,
+                listed_abbreviations,
+            ):
                 target = ordinary_uses[0][0] if ordinary_uses else definitions[0][0]
 
                 findings.append(

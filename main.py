@@ -90,6 +90,14 @@ from validators.auditprofile import (
 from validators.commentverification import (
     vale_anchor_is_verified,
 )
+from runtime.auditmanifest import (
+    build_audit_manifest,
+    write_audit_manifest,
+)
+from runtime.preflight import (
+    format_preflight_failure,
+    run_preflight,
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 
@@ -1796,487 +1804,620 @@ def run_scan_thread(
     progress_var,
     start_btn,
     audit_profile,
-    ):
+):
+    """
+    Run the Word audit in a background thread.
 
-    """This runs in the background so the GUI doesn't freeze."""
-    # 1. We MUST initialize COM for this specific background thread
-    pythoncom.CoInitialize() 
+    The workflow includes:
+      - runtime preflight;
+      - regression gate;
+      - Word extraction;
+      - Standard/Advanced structural validation;
+      - Vale execution;
+      - context filtering and deduplication;
+      - verified comment insertion;
+      - audit summary and manifest generation;
+      - safe Word cleanup.
+    """
+
+    pythoncom.CoInitialize()
 
     word = None
     doc = None
+
     audit_stage = "Starting audit"
-    
+
+    preflight_result = {
+        "passed": False,
+        "checks": [],
+    }
+
+    vale_errors: list[dict] = []
+    structural_findings: list[dict] = []
+    errors: list[dict] = []
+
+    suppressed_findings = Counter()
+
+    comment_metrics = {
+        "candidate_comment_count": 0,
+        "inserted_comment_count": 0,
+        "skipped_comment_reasons": Counter(),
+    }
+
     try:
-        status_var.set("Running approved rule regression tests...")
-        progress_var.set(0)
-
-        audit_stage = "Running regression tests"
-        run_regression_gate()
-
-        status_var.set("Regression tests passed. Launching Word...")
-        progress_var.set(5)
-
         abs_input = os.path.abspath(docx_path)
         abs_output = os.path.abspath(output_path)
-        
-        status_var.set("Launching Word in the background...")
 
-        audit_stage = "Launching Microsoft Word"
-        word = win32com.client.Dispatch("Word.Application")
-        word.Visible = False
-        
-        try:
-            audit_stage = "Opening source document"
-            doc = word.Documents.Open(abs_input)
-            audit_stage = "Extracting document paragraphs"
-            (
-                batch_payload,
-                line_to_range,
-                line_to_vale_text,
-                paragraph_records,
-                total_paragraphs,
-            ) = build_paragraph_records(doc)
+        source_path = Path(abs_input)
+        audited_output_path = Path(abs_output)
 
-            status_var.set(
-                f"Step 1/3: Extracting {total_paragraphs} paragraphs..."
+        # ------------------------------------------------------------
+        # Phase 1: Environment preflight
+        # ------------------------------------------------------------
+        audit_stage = "Running environment preflight"
+
+        status_var.set(
+            "Running environment preflight..."
+        )
+
+        progress_var.set(0)
+
+        preflight_result = run_preflight(
+            project_root=PROJECT_ROOT,
+            output_path=audited_output_path,
+        )
+
+        if not preflight_result["passed"]:
+            raise RuntimeError(
+                format_preflight_failure(
+                    preflight_result
+                )
             )
-            progress_var.set(33)
 
-            audit_stage = "Running structural validators"
-            try:
-                structural_findings = add_structural_findings(
-                    doc=doc,
-                    paragraph_records=paragraph_records,
-                    audit_profile=audit_profile,
+        # ------------------------------------------------------------
+        # Phase 2: Regression gate
+        # ------------------------------------------------------------
+        audit_stage = "Running regression tests"
+
+        status_var.set(
+            "Running approved rule regression tests..."
+        )
+
+        run_regression_gate()
+
+        # ------------------------------------------------------------
+        # Phase 3: Launch Word
+        # ------------------------------------------------------------
+        audit_stage = "Launching Microsoft Word"
+
+        status_var.set(
+            "Regression tests passed. Launching Word..."
+        )
+
+        progress_var.set(5)
+
+        word = win32com.client.Dispatch(
+            "Word.Application"
+        )
+
+        word.Visible = False
+
+        # ------------------------------------------------------------
+        # Phase 4: Open document and extract content
+        # ------------------------------------------------------------
+        audit_stage = "Opening source document"
+
+        doc = word.Documents.Open(abs_input)
+
+        audit_stage = "Extracting document paragraphs"
+
+        (
+            batch_payload,
+            line_to_range,
+            line_to_vale_text,
+            paragraph_records,
+            total_paragraphs,
+        ) = build_paragraph_records(doc)
+
+        status_var.set(
+            f"Step 1/3: Extracting "
+            f"{total_paragraphs} paragraphs..."
+        )
+
+        progress_var.set(33)
+
+        # ------------------------------------------------------------
+        # Phase 5: Structural validation
+        # ------------------------------------------------------------
+        audit_stage = "Running structural validators"
+
+        structural_findings = add_structural_findings(
+            doc=doc,
+            paragraph_records=paragraph_records,
+            audit_profile=audit_profile,
+        )
+
+        # ------------------------------------------------------------
+        # Phase 6: Candidate report generation
+        # ------------------------------------------------------------
+        try:
+            candidate_records = [
+                TextRecord(
+                    index=record.index,
+                    text=record.text,
                 )
+                for record in paragraph_records
+            ]
 
+            candidate_summaries = discover_candidates(
+                database_path=ABBREVIATION_DATABASE_PATH,
+                records=candidate_records,
+            )
 
-            except Exception as structural_error:
-                print(
-                    "Structural validation was skipped because Word returned "
-                    f"an error: {structural_error}"
+            candidate_report_path = (
+                candidate_report_path_for_document(
+                    audited_output_path
                 )
+            )
 
-                print(traceback.format_exc())
+            write_candidate_report(
+                summaries=candidate_summaries,
+                report_path=candidate_report_path,
+            )
 
-                structural_findings = []
+            print(
+                "Candidate review report updated: "
+                f"{candidate_report_path}"
+            )
 
+        except Exception as candidate_error:
+            print(
+                "Candidate review report was not generated: "
+                f"{candidate_error}"
+            )
 
-            try:
-                candidate_records = [
-                    TextRecord(
-                        index=record.index,
-                        text=record.text,
-                    )
-                    for record in paragraph_records
-                ]
+        # ------------------------------------------------------------
+        # Phase 7: Run Vale
+        # ------------------------------------------------------------
+        audit_stage = "Running Vale"
 
-                candidate_summaries = discover_candidates(
-                    database_path=ABBREVIATION_DATABASE_PATH,
-                    records=candidate_records,
-                )
+        status_var.set(
+            "Step 2/3: Executing Vale style scan..."
+        )
 
-                candidate_report_path = (
-                    candidate_report_path_for_document(
-                        Path(abs_output)
-                    )
-                )
-
-                write_candidate_report(
-                    summaries=candidate_summaries,
-                    report_path=candidate_report_path,
-                )
-
-                print(
-                    "Candidate review report updated: "
-                    f"{candidate_report_path}"
-                )
-
-            except Exception as candidate_error:
-
-                # Candidate reporting is useful but must not block the primary
-                # Word audit if a noncritical reporting error occurs.
-                print(
-                    "Candidate review report was not generated: "
-                    f"{candidate_error}"
-                )
-
-            status_var.set("Step 2/3: Executing Vale style scan...")
-            process = subprocess.run(
-                [
+        process = subprocess.run(
+            [
                 "vale",
                 "--no-global",
                 f"--config={PROJECT_ROOT / '.vale.ini'}",
                 "--ext=.md",
                 "--output=JSON",
-                ],
-                input=batch_payload,
-                text=True,
-                capture_output=True,
-                check=False,
-                encoding='utf-8'
+            ],
+            input=batch_payload,
+            text=True,
+            capture_output=True,
+            check=False,
+            encoding="utf-8",
+        )
+
+        if process.returncode == 2:
+            details = (
+                process.stderr.strip()
+                or process.stdout.strip()
+                or "Vale returned a runtime error."
             )
-            progress_var.set(66) # Scan complete, bump bar to 66%
 
-            vale_errors: list[dict] = []
-            errors: list[dict] = []
+            raise RuntimeError(
+                f"Vale execution failed:\n{details}"
+            )
 
-            comment_metrics = {
-                "candidate_comment_count": 0,
-                "inserted_comment_count": 0,
-                "skipped_comment_reasons": Counter(),
-            }
-            
-            if process.stdout.strip():
-                vale_results = json.loads(process.stdout)
-                vale_errors = vale_results.get("stdin.md", [])
-                
-                merged_errors = merge_audit_findings(
-                    vale_findings=vale_errors,
-                    structural_findings=structural_findings,
+        progress_var.set(66)
+
+        if process.stdout.strip():
+            vale_results = json.loads(
+                process.stdout
+            )
+
+            vale_errors = vale_results.get(
+                "stdin.md",
+                [],
+            )
+
+        # ------------------------------------------------------------
+        # Phase 8: Merge, context-filter, and deduplicate findings
+        # ------------------------------------------------------------
+        merged_errors = merge_audit_findings(
+            vale_findings=vale_errors,
+            structural_findings=structural_findings,
+        )
+
+        (
+            context_filtered_errors,
+            suppressed_findings,
+        ) = filter_findings_by_context(
+            findings=merged_errors,
+            paragraph_records=paragraph_records,
+        )
+
+        errors = deduplicate_findings(
+            context_filtered_errors
+        )
+
+        comment_metrics[
+            "candidate_comment_count"
+        ] = len(errors)
+
+        if suppressed_findings:
+            print(
+                "Context-suppressed findings: "
+                f"{sum(suppressed_findings.values())}"
+            )
+
+            for reason, count in sorted(
+                suppressed_findings.items()
+            ):
+                print(
+                    f"  {count} suppressed: {reason}"
                 )
 
-                context_filtered_errors, suppressed_findings = (
-                    filter_findings_by_context(
-                        findings=merged_errors,
-                        paragraph_records=paragraph_records,
+        deduplicated_count = (
+            len(context_filtered_errors)
+            - len(errors)
+        )
+
+        if deduplicated_count > 0:
+            print(
+                "Duplicate findings removed: "
+                f"{deduplicated_count}"
+            )
+
+        # ------------------------------------------------------------
+        # Phase 9: Insert verified comments
+        # ------------------------------------------------------------
+        audit_stage = "Inserting Word comments"
+
+        status_var.set(
+            f"Step 3/3: Injecting {len(errors)} comments..."
+        )
+
+        total_errors = len(errors)
+
+        def finding_start_position(
+            finding: dict,
+        ) -> int:
+            """Return a stable location for reverse-order comments."""
+
+            range_start = finding.get("RangeStart")
+
+            if isinstance(range_start, int):
+                return range_start
+
+            line_number = finding.get("Line")
+
+            paragraph_range = line_to_range.get(
+                line_number
+            )
+
+            if paragraph_range:
+                return paragraph_range[0]
+
+            return 0
+
+        ordered_errors = sorted(
+            errors,
+            key=finding_start_position,
+            reverse=True,
+        )
+
+        for idx, error in enumerate(
+            ordered_errors,
+            start=1,
+        ):
+            range_start = error.get("RangeStart")
+            range_end = error.get("RangeEnd")
+
+            target_range = None
+
+            # --------------------------------------------
+            # Exact structural range
+            # --------------------------------------------
+            if (
+                isinstance(range_start, int)
+                and isinstance(range_end, int)
+                and range_end > range_start
+            ):
+                document_end = doc.Content.End
+
+                safe_start = max(
+                    0,
+                    min(
+                        range_start,
+                        document_end - 1,
+                    ),
+                )
+
+                safe_end = max(
+                    safe_start + 1,
+                    min(
+                        range_end,
+                        document_end,
+                    ),
+                )
+
+                target_range = doc.Range(
+                    safe_start,
+                    safe_end,
+                )
+
+            # --------------------------------------------
+            # Vale / paragraph finding
+            # --------------------------------------------
+            else:
+                line_number = error.get("Line")
+
+                paragraph_range = line_to_range.get(
+                    line_number
+                )
+
+                if paragraph_range:
+                    (
+                        paragraph_start,
+                        paragraph_end,
+                    ) = paragraph_range
+
+                    vale_text = line_to_vale_text.get(
+                        line_number,
+                        "",
                     )
-                )
 
-                errors = deduplicate_findings(
-                    context_filtered_errors
-                )
-                comment_metrics[
-                    "candidate_comment_count"
-                ] = len(errors)
-
-
-                if suppressed_findings:
-                    print(
-                        "Context-suppressed findings: "
-                        f"{sum(suppressed_findings.values())}"
+                    match_text = str(
+                        error.get("Match", "")
                     )
 
-                    for reason, count in sorted(
-                        suppressed_findings.items()
-                    ):
-                        print(
-                            f"  {count} suppressed: {reason}"
+                    occurrence_index = (
+                        vale_match_occurrence_index(
+                            vale_text=vale_text,
+                            match_text=match_text,
+                            span=error.get("Span"),
+                        )
+                    )
+
+                    word_find_range = find_vale_match_range(
+                        doc=doc,
+                        paragraph_start=paragraph_start,
+                        paragraph_end=paragraph_end,
+                        match_text=match_text,
+                        occurrence_index=occurrence_index,
+                    )
+
+                    if word_find_range is not None:
+                        target_range = word_find_range
+
+                    else:
+                        match_offsets = resolve_match_offsets(
+                            vale_text=vale_text,
+                            match_text=match_text,
+                            span=error.get("Span"),
                         )
 
-                deduplicated_count = (
-                    len(context_filtered_errors) - len(errors)
-                )
+                        if match_offsets is not None:
+                            (
+                                match_start,
+                                match_end,
+                            ) = match_offsets
 
-                if deduplicated_count > 0:
-                    print(
-                        "Duplicate findings removed: "
-                        f"{deduplicated_count}"
-                    )
-
-
-                status_var.set(
-                    f"Step 3/3: Injecting {len(errors)} comments..."
-                )
-
-                total_errors = len(errors)
-
-                if total_errors > 0:
-                    def finding_start_position(
-                        finding: dict,
-                    ) -> int:
-                        """Return a stable position for descending comment insertion."""
-
-                        range_start = finding.get("RangeStart")
-
-                        if isinstance(range_start, int):
-                            return range_start
-
-                        line_number = finding.get("Line")
-
-                        paragraph_range = line_to_range.get(
-                            line_number
-                        )
-
-                        if paragraph_range:
-                            return paragraph_range[0]
-
-                        return 0
-
-                    # Add comments from the end of the document toward the beginning.
-                    # This minimizes the chance that Word updates positions before
-                    # earlier comments are anchored.
-                    ordered_errors = sorted(
-                        errors,
-                        key=finding_start_position,
-                        reverse=True,
-                    )
-
-                    audit_stage = "Inserting Word comments"
-                    for idx, error in enumerate(
-                        ordered_errors,
-                        start=1,
-                    ):
-                        range_start = error.get("RangeStart")
-                        range_end = error.get("RangeEnd")
-
-                        target_range = None
-
-                        # Exact-range structural findings, such as table cells,
-                        # captions, footnotes, figures, and hyperlinks.
-                        if (
-                            isinstance(range_start, int)
-                            and isinstance(range_end, int)
-                            and range_end > range_start
-                        ):
-                            document_end = doc.Content.End
-
-                            safe_start = max(
-                                0,
-                                min(range_start, document_end - 1),
+                            safe_start = (
+                                paragraph_start
+                                + match_start
                             )
 
-                            safe_end = max(
-                                safe_start + 1,
-                                min(range_end, document_end),
+                            safe_end = (
+                                paragraph_start
+                                + match_end
                             )
 
-                            target_range = doc.Range(
-                                safe_start,
-                                safe_end,
-                            )
-
-                        # Vale and ordinary paragraph findings.
                         else:
-                            line_number = error.get("Line")
-
-                            paragraph_range = line_to_range.get(
-                                line_number
-                            )
-
-                            if paragraph_range:
-                                paragraph_start, paragraph_end = (
-                                    paragraph_range
-                                )
-
-                                match_text = str(
-                                    error.get("Match", "")
-                                )
-
-                                vale_text = line_to_vale_text.get(
-                                    line_number,
-                                    "",
-                                )
-
-                                occurrence_index = vale_match_occurrence_index(
-                                    vale_text=vale_text,
-                                    match_text=match_text,
-                                    span=error.get("Span"),
-                                )
-
-                                word_find_range = find_vale_match_range(
-                                    doc=doc,
+                            vale_span_range = (
+                                vale_span_to_word_range(
                                     paragraph_start=paragraph_start,
                                     paragraph_end=paragraph_end,
-                                    match_text=match_text,
-                                    occurrence_index=occurrence_index,
+                                    span=error.get("Span"),
                                 )
-
-                                if word_find_range is not None:
-                                    target_range = word_find_range
-
-                                else:
-                                    match_offsets = resolve_match_offsets(
-                                        vale_text=vale_text,
-                                        match_text=match_text,
-                                        span=error.get("Span"),
-                                    )
-
-                                    if match_offsets is not None:
-                                        match_start, match_end = match_offsets
-
-                                        safe_start = paragraph_start + match_start
-                                        safe_end = paragraph_start + match_end
-
-                                    else:
-                                        vale_span_range = vale_span_to_word_range(
-                                            paragraph_start=paragraph_start,
-                                            paragraph_end=paragraph_end,
-                                            span=error.get("Span"),
-                                        )
-
-                                        if vale_span_range is not None:
-                                            safe_start, safe_end = vale_span_range
-
-                                        else:
-                                            document_end = doc.Content.End
-
-                                            safe_start = max(
-                                                0,
-                                                min(
-                                                    paragraph_start,
-                                                    document_end - 1,
-                                                ),
-                                            )
-
-                                            safe_end = max(
-                                                safe_start + 1,
-                                                min(
-                                                    paragraph_end,
-                                                    document_end,
-                                                ),
-                                            )
-
-                                    target_range = doc.Range(
-                                        safe_start,
-                                        safe_end,
-                                    )
-
-
-                        if target_range:
-                            severity = error.get(
-                                "Severity",
-                                "suggestion",
-                            ).upper()
-
-                            match_text = error.get("Match", "")
-                            message = error.get("Message", "")
-
-                            rule_id = error.get(
-                                "Check",
-                                "Clinical.UnknownRule",
                             )
 
-                            # Vale findings include a Span. Structural findings use dedicated
-                            # ranges and are not checked by this text-equivalence gate.
-                            if (
-                                isinstance(error.get("Span"), list)
-                                and match_text
-                            ):
-                                if not vale_anchor_is_verified(
-                                    word_range_text=target_range.Text,
-                                    vale_match_text=str(match_text),
-                                ):
-                                    print(
-                                        "Skipping unverified Vale anchor: "
-                                        f"{rule_id} -> '{match_text}' "
-                                        f"(Word range: '{target_range.Text}')"
-                                    )
+                            if vale_span_range is not None:
+                                (
+                                    safe_start,
+                                    safe_end,
+                                ) = vale_span_range
 
-                                    comment_metrics[
-                                        "skipped_comment_reasons"
-                                    ]["unverified_vale_anchor"] += 1
+                            else:
+                                document_end = doc.Content.End
 
-                                    continue
-
-
-                            # Vale findings include a Span array. Structural findings do not.
-                            # For Vale findings, only insert a comment when the selected Word
-                            # range actually contains the expected matched text.
-                            if (
-                                isinstance(error.get("Span"), list)
-                                and match_text
-                            ):
-                                actual_range_text = (
-                                    target_range.Text
-                                    .replace("\r", "")
-                                    .replace("\x07", "")
-                                    .replace("\x0b", "")
-                                    .replace("\n", "")
-                                    .replace("\xa0", " ")
-                                    .strip()
-                                    .casefold()
+                                safe_start = max(
+                                    0,
+                                    min(
+                                        paragraph_start,
+                                        document_end - 1,
+                                    ),
                                 )
 
-                                expected_match_text = (
-                                    str(match_text)
-                                    .replace("\xa0", " ")
-                                    .strip()
-                                    .casefold()
+                                safe_end = max(
+                                    safe_start + 1,
+                                    min(
+                                        paragraph_end,
+                                        document_end,
+                                    ),
                                 )
 
-                                if actual_range_text != expected_match_text:
-                                    print(
-                                        "Skipping imprecise Vale comment anchor: "
-                                        f"{rule_id} -> '{match_text}' "
-                                        f"(Word range was '{target_range.Text}')"
-                                    )
-                                    continue
-
-
-                            rule_id = error.get(
-                                "Check",
-                                "Clinical.UnknownRule",
-                            )
-
-                            comment_text = (
-                                f"{rule_id} {severity} -> "
-                                f"'{match_text}': {message}"
-                            )
-
-                            try:
-                                doc.Comments.Add(
-                                    Range=target_range,
-                                    Text=comment_text,
-                                )
-
-                                comment_metrics[
-                                    "inserted_comment_count"
-                                ] += 1
-
-                            except Exception as comment_error:
-                                print(
-                                    "Comment insertion skipped for "
-                                    f"{rule_id}: {comment_error}"
-                                )
-
-                                comment_metrics[
-                                    "skipped_comment_reasons"
-                                ]["word_comment_insertion_error"] += 1
-
-
-                        # Update progress for the final 33% of the bar.
-                        progress_var.set(
-                            66 + ((idx / total_errors) * 34)
+                        target_range = doc.Range(
+                            safe_start,
+                            safe_end,
                         )
 
-            write_audit_summary(
-                output_path=Path(abs_output),
-                audit_profile=audit_profile,
-                vale_findings=vale_errors,
-                structural_findings=structural_findings,
-                final_findings=errors,
-                suppressed_findings=suppressed_findings,
-                comment_metrics=comment_metrics,
-                paragraph_records=paragraph_records,
+            if target_range is None:
+                comment_metrics[
+                    "skipped_comment_reasons"
+                ]["no_target_range"] += 1
+
+                continue
+
+            severity = error.get(
+                "Severity",
+                "suggestion",
+            ).upper()
+
+            match_text = str(
+                error.get("Match", "")
             )
 
-            status_var.set("Saving audited document...")
-            audit_stage = "Saving audited document"
-            doc.SaveAs2(abs_output)
-            status_var.set("Complete! Document is ready.")
-            progress_var.set(100)
-            messagebox.showinfo("Success", f"Scan complete.\nSaved to:\n{abs_output}")
-            
-        finally:
-            if doc is not None:
-                try:
-                    doc.Close(SaveChanges=False)
-                except Exception as cleanup_error:
+            message = error.get(
+                "Message",
+                "",
+            )
+
+            rule_id = error.get(
+                "Check",
+                "Clinical.UnknownRule",
+            )
+
+            # Vale findings have spans. Do not add a comment unless
+            # the selected Word range exactly matches the Vale text.
+            if (
+                isinstance(error.get("Span"), list)
+                and match_text
+            ):
+                if not vale_anchor_is_verified(
+                    word_range_text=target_range.Text,
+                    vale_match_text=match_text,
+                ):
                     print(
-                        "Word document cleanup warning: "
-                        f"{cleanup_error}"
+                        "Skipping unverified Vale anchor: "
+                        f"{rule_id} -> '{match_text}' "
+                        f"(Word range: '{target_range.Text}')"
                     )
 
-            if word is not None:
+                    comment_metrics[
+                        "skipped_comment_reasons"
+                    ]["unverified_vale_anchor"] += 1
+
+                    continue
+
+            comment_text = (
+                f"{rule_id} {severity} -> "
+                f"'{match_text}': {message}"
+            )
+
+            try:
+                new_comment = doc.Comments.Add(
+                    Range=target_range,
+                    Text=comment_text,
+                )
+
+                # Identify comments generated by this tool.
                 try:
-                    word.Quit()
-                except Exception as cleanup_error:
-                    print(
-                        "Word application cleanup warning: "
-                        f"{cleanup_error}"
-                    )
-            
+                    new_comment.Author = "MVA"
+                    new_comment.Initial = "MVA"
+                except Exception:
+                    pass
+
+                comment_metrics[
+                    "inserted_comment_count"
+                ] += 1
+
+            except Exception as comment_error:
+                print(
+                    "Comment insertion skipped for "
+                    f"{rule_id}: {comment_error}"
+                )
+
+                comment_metrics[
+                    "skipped_comment_reasons"
+                ]["word_comment_insertion_error"] += 1
+
+            progress_var.set(
+                66 + ((idx / max(1, total_errors)) * 34)
+            )
+
+        # ------------------------------------------------------------
+        # Phase 10: Write summary, save output, write manifest
+        # ------------------------------------------------------------
+        audit_stage = "Writing audit summary"
+
+        write_audit_summary(
+            output_path=audited_output_path,
+            audit_profile=audit_profile,
+            vale_findings=vale_errors,
+            structural_findings=structural_findings,
+            final_findings=errors,
+            suppressed_findings=suppressed_findings,
+            comment_metrics=comment_metrics,
+            paragraph_records=paragraph_records,
+        )
+
+        audit_stage = "Saving audited document"
+
+        status_var.set(
+            "Saving audited document..."
+        )
+
+        doc.SaveAs2(abs_output)
+
+        audit_stage = "Writing audit manifest"
+
+        vale_version = ""
+
+        for check in preflight_result["checks"]:
+            if check["name"] == "Vale CLI":
+                vale_version = check["details"]
+                break
+
+        content_zone_counts = Counter(
+            record.content_zone
+            for record in paragraph_records
+        )
+
+        manifest = build_audit_manifest(
+            source_path=source_path,
+            output_path=audited_output_path,
+            audit_profile=audit_profile,
+            vale_version=vale_version,
+            final_findings=errors,
+            suppressed_findings=suppressed_findings,
+            comment_metrics=comment_metrics,
+            content_zone_counts=dict(
+                content_zone_counts
+            ),
+            preflight_result=preflight_result,
+        )
+
+        manifest_path = write_audit_manifest(
+            manifest=manifest,
+            output_path=audited_output_path,
+        )
+
+        print(
+            f"Audit manifest written: {manifest_path}"
+        )
+
+        status_var.set(
+            "Complete! Document is ready."
+        )
+
+        progress_var.set(100)
+
+        messagebox.showinfo(
+            "Success",
+            (
+                "Scan complete.\n\n"
+                f"Saved to:\n{abs_output}\n\n"
+                f"Inserted comments: "
+                f"{comment_metrics['inserted_comment_count']}\n"
+                f"Skipped comments: "
+                f"{sum(comment_metrics['skipped_comment_reasons'].values())}"
+            ),
+        )
+
     except Exception as error:
         status_var.set(
             f"Error occurred during: {audit_stage}"
@@ -2301,11 +2442,32 @@ def run_scan_thread(
         )
 
     finally:
-        # 2. We MUST uninitialize COM before the thread dies
+        if doc is not None:
+            try:
+                doc.Close(
+                    SaveChanges=False
+                )
+            except Exception as cleanup_error:
+                print(
+                    "Word document cleanup warning: "
+                    f"{cleanup_error}"
+                )
+
+        if word is not None:
+            try:
+                word.Quit()
+            except Exception as cleanup_error:
+                print(
+                    "Word application cleanup warning: "
+                    f"{cleanup_error}"
+                )
+
         pythoncom.CoUninitialize()
-        # Re-enable the start button
+
         try:
-            start_btn.config(state=tk.NORMAL)
+            start_btn.config(
+                state=tk.NORMAL
+            )
         except Exception as button_error:
             print(
                 "GUI cleanup warning: "
