@@ -1808,16 +1808,8 @@ def run_scan_thread(
     """
     Run the Word audit in a background thread.
 
-    The workflow includes:
-      - runtime preflight;
-      - regression gate;
-      - Word extraction;
-      - Standard/Advanced structural validation;
-      - Vale execution;
-      - context filtering and deduplication;
-      - verified comment insertion;
-      - audit summary and manifest generation;
-      - safe Word cleanup.
+    The audit uses a production-safe Standard profile by default and
+    prevents duplicate comments on the same resolved Word range.
     """
 
     pythoncom.CoInitialize()
@@ -1903,7 +1895,7 @@ def run_scan_thread(
         word.Visible = False
 
         # ------------------------------------------------------------
-        # Phase 4: Open document and extract content
+        # Phase 4: Open and extract document
         # ------------------------------------------------------------
         audit_stage = "Opening source document"
 
@@ -1938,7 +1930,7 @@ def run_scan_thread(
         )
 
         # ------------------------------------------------------------
-        # Phase 6: Candidate report generation
+        # Phase 6: Candidate report
         # ------------------------------------------------------------
         try:
             candidate_records = [
@@ -1977,7 +1969,7 @@ def run_scan_thread(
             )
 
         # ------------------------------------------------------------
-        # Phase 7: Run Vale
+        # Phase 7: Vale execution
         # ------------------------------------------------------------
         audit_stage = "Running Vale"
 
@@ -2024,7 +2016,7 @@ def run_scan_thread(
             )
 
         # ------------------------------------------------------------
-        # Phase 8: Merge, context-filter, and deduplicate findings
+        # Phase 8: Merge, filter, and deduplicate findings
         # ------------------------------------------------------------
         merged_errors = merge_audit_findings(
             vale_findings=vale_errors,
@@ -2067,12 +2059,12 @@ def run_scan_thread(
 
         if deduplicated_count > 0:
             print(
-                "Duplicate findings removed: "
-                f"{deduplicated_count}"
+                "Duplicate findings removed before "
+                f"range resolution: {deduplicated_count}"
             )
 
         # ------------------------------------------------------------
-        # Phase 9: Insert verified comments
+        # Phase 9: Resolve ranges and insert comments
         # ------------------------------------------------------------
         audit_stage = "Inserting Word comments"
 
@@ -2109,6 +2101,15 @@ def run_scan_thread(
             reverse=True,
         )
 
+        # Final deduplication guard.
+        #
+        # Pre-range deduplication cannot catch findings that differ
+        # in Vale span or source metadata but resolve to the same
+        # exact Word range.
+        inserted_comment_range_keys: set[
+            tuple[str, int, int]
+        ] = set()
+
         for idx, error in enumerate(
             ordered_errors,
             start=1,
@@ -2118,9 +2119,9 @@ def run_scan_thread(
 
             target_range = None
 
-            # --------------------------------------------
-            # Exact structural range
-            # --------------------------------------------
+            # --------------------------------------------------------
+            # Exact structural ranges
+            # --------------------------------------------------------
             if (
                 isinstance(range_start, int)
                 and isinstance(range_end, int)
@@ -2149,9 +2150,9 @@ def run_scan_thread(
                     safe_end,
                 )
 
-            # --------------------------------------------
-            # Vale / paragraph finding
-            # --------------------------------------------
+            # --------------------------------------------------------
+            # Vale and paragraph-level findings
+            # --------------------------------------------------------
             else:
                 line_number = error.get("Line")
 
@@ -2281,8 +2282,33 @@ def run_scan_thread(
                 "Clinical.UnknownRule",
             )
 
-            # Vale findings have spans. Do not add a comment unless
-            # the selected Word range exactly matches the Vale text.
+            # --------------------------------------------------------
+            # Final same-run resolved-range deduplication
+            # --------------------------------------------------------
+            resolved_range_key = (
+                rule_id,
+                int(target_range.Start),
+                int(target_range.End),
+            )
+
+            if (
+                resolved_range_key
+                in inserted_comment_range_keys
+            ):
+                print(
+                    "Skipping duplicate resolved comment: "
+                    f"{rule_id} -> '{match_text}'"
+                )
+
+                comment_metrics[
+                    "skipped_comment_reasons"
+                ]["duplicate_resolved_range"] += 1
+
+                continue
+
+            # --------------------------------------------------------
+            # Verified Vale anchors only
+            # --------------------------------------------------------
             if (
                 isinstance(error.get("Span"), list)
                 and match_text
@@ -2314,12 +2340,15 @@ def run_scan_thread(
                     Text=comment_text,
                 )
 
-                # Identify comments generated by this tool.
                 try:
                     new_comment.Author = "MVA"
                     new_comment.Initial = "MVA"
                 except Exception:
                     pass
+
+                inserted_comment_range_keys.add(
+                    resolved_range_key
+                )
 
                 comment_metrics[
                     "inserted_comment_count"
@@ -2340,7 +2369,7 @@ def run_scan_thread(
             )
 
         # ------------------------------------------------------------
-        # Phase 10: Write summary, save output, write manifest
+        # Phase 10: Audit summary and output save
         # ------------------------------------------------------------
         audit_stage = "Writing audit summary"
 
@@ -2363,6 +2392,9 @@ def run_scan_thread(
 
         doc.SaveAs2(abs_output)
 
+        # ------------------------------------------------------------
+        # Phase 11: Audit manifest
+        # ------------------------------------------------------------
         audit_stage = "Writing audit manifest"
 
         vale_version = ""
