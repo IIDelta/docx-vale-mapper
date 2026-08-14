@@ -1817,7 +1817,7 @@ def run_scan_thread(
     word = None
     doc = None
 
-    audit_stage = "Starting audit"
+    audit_stage = "1ing audit"
 
     preflight_result = {
         "passed": False,
@@ -2588,10 +2588,15 @@ def start_process(
         )
         return
 
-    if (
-        source_path.resolve().casefold()
-        == output_path.resolve().casefold()
-    ):
+    normalized_source_path = str(
+        source_path.resolve()
+    ).casefold()
+
+    normalized_output_path = str(
+        output_path.resolve()
+    ).casefold()
+
+    if normalized_source_path == normalized_output_path:
         messagebox.showerror(
             "Invalid Output",
             (
