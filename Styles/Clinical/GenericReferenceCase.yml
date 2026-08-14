@@ -1,0 +1,20 @@
+# Style guide:
+# Do not capitalize general roles, general document/project references,
+# centers, or organizations unless they are part of a formal name.
+
+extends: substitution
+message: "Style guide capitalization: Use '%s' instead of '%s' for a general reference."
+level: warning
+ignorecase: false
+capitalize: false
+action:
+  name: replace
+swap:
+  '\b([Tt]he) Clinical Study Report\b': '$1 clinical study report'
+  "\b([Tt]he) Investigator[’']s Brochure\b": "$1 investigator's brochure"
+  '\b([Tt]he) Principal Investigator\b': '$1 principal investigator'
+  '\b([Tt]he) Coordinating Investigator\b': '$1 coordinating investigator'
+  "\b([Tt]he) Sponsor[’']s Medical Monitor\b": "$1 sponsor's medical monitor"
+  '\b([Aa]n?) Contract Research Organization\b': '$1 contract research organization'
+  '\b([Aa]n?) Institutional Review Board\b': '$1 institutional review board'
+  '\b([Aa]n?) Independent Ethics Committee\b': '$1 independent ethics committee'

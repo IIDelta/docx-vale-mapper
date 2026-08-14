@@ -19,7 +19,6 @@ BODY_NARRATIVE_RULES = {
     "Clinical.CompriseUsage",
     "Clinical.ForwardSlashReview",
     "Clinical.PlainLanguageAbbreviations",
-    "Clinical.MultiplePunctuationSpaces",
     "Clinical.NumeralApostrophes",
     "Clinical.EmailFormat",
     "Clinical.DashSpacing",
@@ -41,6 +40,8 @@ BODY_NARRATIVE_RULES = {
     "Clinical.LabelCapitalization",
     "Clinical.ReferenceLabels",
     "Clinical.TrialAliasFormat",
+    "Clinical.ClinicalDescriptorCase",
+    "Clinical.GenericReferenceCase",
 }
 
 
@@ -49,15 +50,17 @@ TABLE_DATA_RULES = {
     "Clinical.TableZeroFormat",
 }
 
+
 ALWAYS_SUPPRESS_RULES = {
-    # Low-value and currently unreliable in complex Word content.
     "Clinical.MultiplePunctuationSpaces",
 }
+
 
 ABBREVIATION_HEADING_RULES = {
     "Clinical.AbbreviationMissingFromList",
     "Clinical.AbbreviationRedefinedInText",
 }
+
 
 SUPPRESSED_ZONES_FOR_BODY_RULES = {
     "title_page",
@@ -89,13 +92,13 @@ def filter_findings_by_context(
 
     for finding in findings:
         rule_id = finding.get("Check", "")
+        line_number = finding.get("Line")
+
         if rule_id in ALWAYS_SUPPRESS_RULES:
             suppressed[
                 f"{rule_id}:production_safe"
             ] += 1
             continue
-
-        line_number = finding.get("Line")
 
         record = record_by_line.get(line_number)
 
@@ -141,9 +144,6 @@ def deduplicate_findings(
 ) -> list[dict]:
     """
     Remove duplicate findings that share rule, location, and match.
-
-    This protects against overlap between repeated extraction paths,
-    table/paragraph overlap, and repeated Word content structures.
     """
 
     unique_findings: list[dict] = []
