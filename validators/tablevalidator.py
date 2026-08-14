@@ -109,6 +109,13 @@ def validate_table_cells(
     ] = set()
 
     for cell in cells:
+        if cell.paragraph.content_zone in {
+            "title_page",
+            "summary_of_changes",
+            "protocol_summary",
+        }:
+            continue
+
         is_column_heading = cell.row_index == 1
 
         is_row_heading = (

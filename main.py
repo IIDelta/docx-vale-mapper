@@ -67,6 +67,17 @@ from validators.appendixvalidator import (
 from validators.valespan import (
     vale_span_to_word_range,
 )
+from validators.contextvalidator import (
+    classify_content_zone,
+    heading_level_from_style,
+    is_protocol_summary_heading,
+    is_reference_heading,
+    is_summary_heading,
+)
+from validators.findingfilter import (
+    deduplicate_findings,
+    filter_findings_by_context,
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 
@@ -136,7 +147,16 @@ def extract_entries_from_table(
     entries: list[AbbreviationEntry] = []
 
     for row_index in range(1, table.Rows.Count + 1):
-        row = table.Rows.Item(row_index)
+        try:
+            row = table.Rows.Item(row_index)
+
+        except Exception as table_row_error:
+            print(
+                f"Skipping table {table_index} row traversal "
+                f"because of merged cells: {table_row_error}"
+            )
+            break
+
         cell_values: list[str] = []
 
         try:
@@ -405,6 +425,20 @@ def build_paragraph_records(doc):
     current_line = 1
     total_paragraphs = doc.Paragraphs.Count
 
+    title_page_active = True
+
+    summary_active = False
+    summary_heading_level = 0
+
+    protocol_summary_active = False
+    protocol_summary_heading_level = 0
+
+    reference_active = False
+
+    section_context = "title_page"
+
+
+
     for index, paragraph in enumerate(doc.Paragraphs, start=1):
         raw_text = paragraph.Range.Text
         normalized_text = clean_text(raw_text)
@@ -430,10 +464,91 @@ def build_paragraph_records(doc):
                 list_type = list_format.ListType
 
                 if list_type not in (0, None):
-                    list_marker = f"word_list_{list_type}"
+                    list_marker = (
+                        f"word_list_{list_type}"
+                    )
 
         except Exception:
             list_marker = ""
+
+        heading_level = heading_level_from_style(
+            style_name
+        )
+
+        is_heading = heading_level > 0
+
+        try:
+            is_in_table = bool(
+                paragraph.Range.Information(12)
+            )
+        except Exception:
+            try:
+                is_in_table = bool(
+                    paragraph.Range.Tables.Count
+                )
+            except Exception:
+                is_in_table = False
+
+        if is_summary_heading(normalized_text):
+            summary_active = True
+
+            summary_heading_level = (
+                heading_level or 1
+            )
+
+            section_context = "summary_of_changes"
+
+        elif (
+            summary_active
+            and is_heading
+            and heading_level > 0
+            and heading_level <= summary_heading_level
+        ):
+            summary_active = False
+            section_context = "body_narrative"
+
+        if is_protocol_summary_heading(normalized_text):
+            protocol_summary_active = True
+
+            protocol_summary_heading_level = (
+                heading_level or 1
+            )
+
+            section_context = "protocol_summary"
+
+        elif (
+            protocol_summary_active
+            and is_heading
+            and heading_level > 0
+            and heading_level
+            <= protocol_summary_heading_level
+        ):
+            protocol_summary_active = False
+            section_context = "body_narrative"
+
+        if is_reference_heading(normalized_text):
+            reference_active = True
+            section_context = "reference"
+
+        elif (
+            is_heading
+            and not summary_active
+            and not protocol_summary_active
+            and not is_reference_heading(normalized_text)
+        ):
+            reference_active = False
+
+        content_zone = classify_content_zone(
+            text=normalized_text,
+            style_name=style_name,
+            is_in_table=is_in_table,
+            list_marker=list_marker,
+            title_page_active=title_page_active,
+            summary_active=summary_active,
+            protocol_summary_active=protocol_summary_active,
+            reference_active=reference_active,
+        )
+
 
         record = ParagraphRecord(
             index=index,
@@ -443,6 +558,11 @@ def build_paragraph_records(doc):
             range_start=paragraph.Range.Start,
             range_end=paragraph.Range.End,
             list_marker=list_marker,
+            is_in_table=is_in_table,
+            is_heading=is_heading,
+            heading_level=heading_level,
+            section_context=section_context,
+            content_zone=content_zone,
         )
 
         paragraph_records.append(record)
@@ -452,6 +572,13 @@ def build_paragraph_records(doc):
             + vale_offset
             + len(vale_text),
         )
+
+        if is_protocol_summary_heading(
+            normalized_text
+        ):
+            title_page_active = False
+
+
 
         batch_parts.append(vale_text)
 
@@ -674,7 +801,15 @@ def add_table_findings(
             1,
             table.Rows.Count + 1,
         ):
-            row = table.Rows.Item(row_index)
+            try:
+                row = table.Rows.Item(row_index)
+
+            except Exception as table_row_error:
+                print(
+                    f"Skipping table {table_index} row traversal "
+                    f"because of merged cells: {table_row_error}"
+                )
+                break
 
             try:
                 cell_count = row.Cells.Count
@@ -808,7 +943,15 @@ def add_caption_footnote_findings(
             1,
             table.Rows.Count + 1,
         ):
-            row = table.Rows.Item(row_index)
+            try:
+                row = table.Rows.Item(row_index)
+
+            except Exception as table_row_error:
+                print(
+                    f"Skipping table {table_index} row traversal "
+                    f"because of merged cells: {table_row_error}"
+                )
+                break
 
             try:
                 cell_count = row.Cells.Count
@@ -1102,7 +1245,16 @@ def add_appendix_findings(
             1,
             table.Rows.Count + 1,
         ):
-            row = table.Rows.Item(row_index)
+            try:
+                row = table.Rows.Item(row_index)
+
+            except Exception as table_row_error:
+                print(
+                    f"Skipping table {table_index} row traversal "
+                    f"because of merged cells: {table_row_error}"
+                )
+                break
+
 
             try:
                 cell_count = row.Cells.Count
@@ -1158,83 +1310,170 @@ def add_structural_findings(
     doc,
     paragraph_records: list[ParagraphRecord],
 ) -> list[dict]:
-    """Run structural abbreviation checks for the Word document."""
+    """
+    Run all structural validators.
 
-    policy = build_effective_policy(
-        base_policy_path=ABBREVIATION_POLICY_PATH,
-        database_path=ABBREVIATION_DATABASE_PATH,
-    )
+    Each validator is isolated so that one complex Word object, such as
+    a vertically merged table or deleted hyperlink, cannot disable all
+    other structural validation.
+    """
 
-    list_heading = find_list_heading(paragraph_records)
+    findings: list[dict] = []
 
-    abbreviation_entries = extract_abbreviation_entries_from_word(
-        doc=doc,
-        heading_record=list_heading,
-        policy=policy,
-    )
+    def safe_structural_check(
+        check_name: str,
+        callback,
+    ) -> list[dict]:
+        """
+        Run one structural validator safely.
 
-    has_abbreviation_list = list_heading is not None
+        If Word COM raises an error, log the failure and return no
+        findings for only that validator.
+        """
 
-    findings = validate_first_use(
-        paragraphs=paragraph_records,
-        policy=policy,
-        has_abbreviation_list=has_abbreviation_list,
-        abbreviation_entries=abbreviation_entries,
-        list_heading=list_heading,
-    )
+        try:
+            result = callback()
 
-    findings.extend(
-        validate_deprecated_terms(
+            return result or []
+
+        except Exception as structural_error:
+            print(
+                f"Structural check skipped: {check_name}: "
+                f"{structural_error}"
+            )
+
+            print(traceback.format_exc())
+
+            return []
+
+    def run_abbreviation_checks() -> list[dict]:
+        """
+        Run abbreviation, List of Abbreviations, and deprecated-term
+        checks as one controlled group.
+        """
+
+        policy = build_effective_policy(
+            base_policy_path=ABBREVIATION_POLICY_PATH,
+            database_path=ABBREVIATION_DATABASE_PATH,
+        )
+
+        list_heading = find_list_heading(
+            paragraph_records
+        )
+
+        abbreviation_entries = (
+            extract_abbreviation_entries_from_word(
+                doc=doc,
+                heading_record=list_heading,
+                policy=policy,
+            )
+        )
+
+        has_abbreviation_list = (
+            list_heading is not None
+        )
+
+        abbreviation_findings = validate_first_use(
             paragraphs=paragraph_records,
-            deprecated_terms=policy.get(
-                "deprecated_terms",
-                {},
+            policy=policy,
+            has_abbreviation_list=has_abbreviation_list,
+            abbreviation_entries=abbreviation_entries,
+            list_heading=list_heading,
+        )
+
+        abbreviation_findings.extend(
+            validate_deprecated_terms(
+                paragraphs=paragraph_records,
+                deprecated_terms=policy.get(
+                    "deprecated_terms",
+                    {},
+                ),
+            )
+        )
+
+        return abbreviation_findings
+
+    # A4: Abbreviations, List of Abbreviations, and deprecated terms.
+    findings.extend(
+        safe_structural_check(
+            "abbreviation validation",
+            run_abbreviation_checks,
+        )
+    )
+
+    # A7.2: Word lists and manually typed bullet lists.
+    findings.extend(
+        safe_structural_check(
+            "list validation",
+            lambda: validate_list_structure(
+                paragraphs=paragraph_records,
             ),
         )
     )
 
+    # A8.1: Italics, roman Latin terms, and radiolabel formatting.
     findings.extend(
-        validate_list_structure(
-            paragraphs=paragraph_records,
+        safe_structural_check(
+            "typography validation",
+            lambda: add_typography_findings(
+                doc=doc,
+                paragraph_records=paragraph_records,
+            ),
         )
     )
 
+    # A8.2: Raw URLs and active external Word hyperlinks.
     findings.extend(
-        add_typography_findings(
-            doc=doc,
-            paragraph_records=paragraph_records,
+        safe_structural_check(
+            "reference validation",
+            lambda: add_reference_findings(
+                doc=doc,
+                paragraph_records=paragraph_records,
+            ),
         )
     )
 
+    # A9.1: Table heading case and table zero values.
     findings.extend(
-        add_reference_findings(
-            doc=doc,
-            paragraph_records=paragraph_records,
+        safe_structural_check(
+            "table validation",
+            lambda: add_table_findings(
+                doc=doc,
+                paragraph_records=paragraph_records,
+            ),
         )
     )
 
+    # A9.2: Table captions and table footnotes.
     findings.extend(
-        add_table_findings(
-            doc=doc,
-            paragraph_records=paragraph_records,
+        safe_structural_check(
+            "caption and footnote validation",
+            lambda: add_caption_footnote_findings(
+                doc=doc,
+                paragraph_records=paragraph_records,
+            ),
         )
     )
+
+    # A9.3: Figure titles, labels, duplicate numbering, and visual review.
     findings.extend(
-        add_caption_footnote_findings(
-            doc=doc,
-            paragraph_records=paragraph_records,
+        safe_structural_check(
+            "figure validation",
+            lambda: add_figure_findings(
+                doc=doc,
+                paragraph_records=paragraph_records,
+            ),
         )
     )
+
+    # A9.4: Appendix table and figure prefix/sequence checks.
     findings.extend(
-        add_figure_findings(
-            doc=doc,
-            paragraph_records=paragraph_records,
-        )
-    )
-    findings.extend(
-        add_appendix_findings(
-            doc=doc,
-            paragraph_records=paragraph_records,
+        safe_structural_check(
+            "appendix validation",
+            lambda: add_appendix_findings(
+                doc=doc,
+                paragraph_records=paragraph_records,
+            ),
         )
     )
 
@@ -1364,10 +1603,44 @@ def run_scan_thread(docx_path, output_path, status_var, progress_var, start_btn)
                 vale_results = json.loads(process.stdout)
                 vale_errors = vale_results.get("stdin.md", [])
                 
-                errors = merge_audit_findings(
+                merged_errors = merge_audit_findings(
                     vale_findings=vale_errors,
                     structural_findings=structural_findings,
                 )
+
+                context_filtered_errors, suppressed_findings = (
+                    filter_findings_by_context(
+                        findings=merged_errors,
+                        paragraph_records=paragraph_records,
+                    )
+                )
+
+                errors = deduplicate_findings(
+                    context_filtered_errors
+                )
+
+                if suppressed_findings:
+                    print(
+                        "Context-suppressed findings: "
+                        f"{sum(suppressed_findings.values())}"
+                    )
+
+                    for reason, count in sorted(
+                        suppressed_findings.items()
+                    ):
+                        print(
+                            f"  {count} suppressed: {reason}"
+                        )
+
+                deduplicated_count = (
+                    len(context_filtered_errors) - len(errors)
+                )
+
+                if deduplicated_count > 0:
+                    print(
+                        "Duplicate findings removed: "
+                        f"{deduplicated_count}"
+                    )
 
 
                 status_var.set(

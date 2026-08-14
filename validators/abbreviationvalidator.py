@@ -26,6 +26,11 @@ class ParagraphRecord:
     range_start: int = 0
     range_end: int = 0
     list_marker: str = ""
+    is_in_table: bool = False
+    is_heading: bool = False
+    heading_level: int = 0
+    section_context: str = ""
+    content_zone: str = "body_narrative"
 
 
 @dataclass(frozen=True)

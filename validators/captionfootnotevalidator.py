@@ -68,7 +68,12 @@ def make_range_finding(
 def is_table_footnote_like(
     text: str,
 ) -> bool:
-    """Return True for recognizable footnote-style table text."""
+    """
+    Return True for recognizable table/figure footnote text.
+
+    Lowercase lettered designators are accepted. Uppercase title text,
+    such as "A Phase 3...", must not be treated as a footnote.
+    """
 
     stripped = text.strip()
 
@@ -79,7 +84,6 @@ def is_table_footnote_like(
         re.match(
             r"^(?:[a-z](?:,\s*[a-z])*|[*†])(?:\s|,)",
             stripped,
-            flags=re.IGNORECASE,
         )
     )
 

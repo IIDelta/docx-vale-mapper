@@ -16,16 +16,22 @@ def is_list_item(
     paragraph: ParagraphRecord,
 ) -> bool:
     """
-    Return True for a true Word list item or a manually typed marker.
+    Return True for eligible Word or manual list items.
 
-    Supported manual markers include:
-      • Bullet characters
-      • Dash bullets
-      • 1. Numbered items
-      • 1) Numbered items
-      • a. Lettered items
-      • a) Lettered items
+    Title pages, summary-of-changes content, headings, captions, and
+    table cells must never be treated as editorial body-text lists.
     """
+    if paragraph.content_zone in {
+        "title_page",
+        "summary_of_changes",
+        "protocol_summary",
+        "heading",
+        "table_cell",
+        "caption",
+        "reference",
+    }:
+
+        return False
 
     if paragraph.list_marker.strip():
         return True
