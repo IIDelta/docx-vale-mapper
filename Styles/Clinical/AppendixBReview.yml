@@ -1,0 +1,31 @@
+# Takeda Style Guide v6.0, Appendix B.
+# These phrases are review-only because a replacement can depend on syntax.
+extends: existence
+message: "Takeda redundancy review: Avoid '%s' unless the surrounding context requires it."
+level: warning
+ignorecase: true
+tokens:
+  - '\badequate enough\b'
+  - '\bAUC value\b'
+  - '\bCmax value\b'
+  - '\bbrief in duration\b'
+  - '\bcompletely (?:full|empty)\b'
+  - '\bconsensus of opinion\b'
+  - '\bdistinguish the difference\b'
+  - '\beliminate altogether\b'
+  - '\bfellow colleagues\b'
+  - '\bgeneral rule\b'
+  - '\bherein we describe\b'
+  - '\binterval of time\b'
+  - '\blift up\b'
+  - '\bmajor breakthrough\b'
+  - '\bnear to\b'
+  - '\boutside of\b'
+  - '\bown personal view\b'
+  - '\bpersonal friend\b'
+  - '\bpredict in advance\b'
+  - '\breason why\b'
+  - '\bskin rash\b'
+  - '\bstill continues\b'
+  - '\bsum total\b'
+  - '\buniformly consistent\b'

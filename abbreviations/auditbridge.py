@@ -150,7 +150,10 @@ def build_effective_policy(
         if token.casefold() not in protected_lookup
     }
 
-    effective_policy["deprecated_terms"] = (
+    # Keep static Style Guide decisions when the local registry is empty.
+    # A reviewed registry replacement for the same token takes precedence.
+    effective_policy.setdefault("deprecated_terms", {})
+    effective_policy["deprecated_terms"].update(
         registry_policy["deprecated_terms"]
     )
 

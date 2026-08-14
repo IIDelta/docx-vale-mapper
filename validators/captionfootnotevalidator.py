@@ -173,6 +173,74 @@ def validate_captions(
                 )
             )
 
+    findings.extend(
+        validate_caption_label_sequence(
+            captions=captions,
+            kind="Table",
+            label_pattern=TABLE_LABEL_PATTERN,
+            check="Clinical.TableLabelSequence",
+        )
+    )
+    return findings
+
+
+def validate_caption_label_sequence(
+    captions: list[CaptionRecord],
+    kind: str,
+    label_pattern: re.Pattern,
+    check: str,
+) -> list[dict]:
+    """Flag gaps or reversals in numeric table/figure labels per section."""
+    grouped: dict[str, list[tuple[int, CaptionRecord]]] = {}
+
+    for position, caption in enumerate(captions):
+        if caption.kind != kind:
+            continue
+        label_match = label_pattern.match(caption.text)
+        if label_match is None:
+            continue
+        raw_label = label_match.group("label")
+        if not raw_label.isdigit():
+            # Letter-suffixed labels are subdivisions, not sequence positions.
+            continue
+        section_key = (
+            caption.paragraph.section_context.strip().casefold()
+            or "__document__"
+        )
+        grouped.setdefault(section_key, []).append((position, caption))
+
+    findings: list[dict] = []
+    for section_captions in grouped.values():
+        previous_number: int | None = None
+        for _, caption in sorted(
+            section_captions,
+            key=lambda item: (item[1].range_start, item[0]),
+        ):
+            label_match = label_pattern.match(caption.text)
+            if label_match is None:
+                continue
+            current_number = int(label_match.group("label"))
+            if (
+                previous_number is not None
+                and current_number != previous_number + 1
+            ):
+                findings.append(
+                    make_range_finding(
+                        check=check,
+                        severity="warning",
+                        message=(
+                            f"Style guide {kind.lower()} format: Number "
+                            f"{kind.lower()} labels consecutively within "
+                            "each document section."
+                        ),
+                        match=caption.text,
+                        paragraph=caption.paragraph,
+                        range_start=caption.range_start,
+                        range_end=caption.range_end,
+                    )
+                )
+            previous_number = current_number
+
     return findings
 
 

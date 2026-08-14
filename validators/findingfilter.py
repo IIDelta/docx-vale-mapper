@@ -42,6 +42,8 @@ BODY_NARRATIVE_RULES = {
     "Clinical.TrialAliasFormat",
     "Clinical.ClinicalDescriptorCase",
     "Clinical.GenericReferenceCase",
+    "Clinical.NumeralAtSentenceStart",
+    "Clinical.NumberGrouping",
 }
 
 

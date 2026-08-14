@@ -1,0 +1,17 @@
+# Takeda Style Guide v6.0, Appendix D.
+# Medical-usage distinctions require author review and are not auto-replaced.
+extends: existence
+message: "Takeda medical-usage review: Verify that '%s' is used according to Appendix D and the applicable scientific context."
+level: warning
+ignorecase: true
+tokens:
+  - '\b(?:pre|post)transplantation\b'
+  - '\btransplantations\b'
+  - '\btrial arm\b'
+  - '\b(?:participant|participants|patient|patients) (?:was|were) followed\b'
+  - '\bfollowed (?:a |the )?(?:participant|participants|patient|patients)\b'
+  - '\bdose of \d+(?:\.\d+)? ?(?:mg|µg)/kg\b'
+  - '\bultrasound\b'
+  - '\bblinding\b'
+  - '\bclinical pathology\b'
+  - '\bmalignancy\b'

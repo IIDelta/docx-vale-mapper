@@ -1,0 +1,9 @@
+# Takeda Style Guide v6.0, section 7.2:
+# Numbers with more than four digits use comma-separated groups of three.
+# Hyphenated identifiers are not matched, so protocol, trial, and EudraCT
+# identifiers are not flagged by this deterministic check.
+extends: existence
+message: "Style guide numbers: Use comma-separated groups of three digits for a number greater than 9999."
+level: warning
+tokens:
+  - '\b\d{5,}(?:\.\d+)?\b'

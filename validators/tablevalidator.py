@@ -191,4 +191,77 @@ def validate_table_cells(
             )
 
 
+    findings.extend(
+        validate_missing_data_definitions(cells)
+    )
+    return findings
+
+
+MISSING_DATA_DEFINITIONS = {
+    "NA": (
+        "not available",
+        "not analyzed",
+        "not applicable",
+    ),
+    "ND": (
+        "not determined",
+        "not done",
+    ),
+    "NC": (
+        "not calculated",
+    ),
+    "NE": (
+        "not estimable",
+        "not evaluable",
+    ),
+}
+
+
+def validate_missing_data_definitions(
+    cells: list[TableCellRecord],
+) -> list[dict]:
+    """Require approved missing-data codes to be defined in each table."""
+    table_text: dict[int, list[str]] = {}
+    body_codes: list[tuple[TableCellRecord, str]] = []
+
+    for cell in cells:
+        if cell.paragraph.content_zone in {
+            "title_page",
+            "summary_of_changes",
+            "protocol_summary",
+        }:
+            continue
+        normalized = cell.text.strip()
+        table_text.setdefault(cell.table_index, []).append(normalized)
+        if (
+            cell.row_index > 1
+            and cell.column_index > 1
+            and normalized in MISSING_DATA_DEFINITIONS
+        ):
+            body_codes.append((cell, normalized))
+
+    findings: list[dict] = []
+    for cell, code in body_codes:
+        definition_text = " ".join(
+            table_text.get(cell.table_index, [])
+        ).casefold()
+        if any(
+            definition in definition_text
+            for definition in MISSING_DATA_DEFINITIONS[code]
+        ):
+            continue
+        findings.append(
+            make_cell_finding(
+                check="Clinical.TableMissingDataDefinition",
+                severity="warning",
+                message=(
+                    "Style guide table format: Define "
+                    f"'{code}' in a table footnote when it denotes "
+                    "missing or not-applicable data."
+                ),
+                match=code,
+                cell=cell,
+            )
+        )
+
     return findings

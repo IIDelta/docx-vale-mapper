@@ -210,4 +210,64 @@ def validate_figures(
                 )
             )
 
+    findings.extend(
+        validate_figure_label_sequence(
+            captions=figure_captions,
+        )
+    )
+    return findings
+
+
+def validate_figure_label_sequence(
+    captions: list[CaptionRecord],
+) -> list[dict]:
+    """Flag gaps or reversals in numeric figure labels per section."""
+    grouped: dict[str, list[tuple[int, CaptionRecord]]] = {}
+
+    for position, caption in enumerate(captions):
+        label_match = FIGURE_LABEL_PATTERN.match(caption.text)
+        if label_match is None:
+            continue
+        raw_label = label_match.group("label")
+        if not raw_label.isdigit():
+            # Figure 5.a is a subdivision rather than a sequence position.
+            continue
+        section_key = (
+            caption.paragraph.section_context.strip().casefold()
+            or "__document__"
+        )
+        grouped.setdefault(section_key, []).append((position, caption))
+
+    findings: list[dict] = []
+    for section_captions in grouped.values():
+        previous_number: int | None = None
+        for _, caption in sorted(
+            section_captions,
+            key=lambda item: (item[1].range_start, item[0]),
+        ):
+            label_match = FIGURE_LABEL_PATTERN.match(caption.text)
+            if label_match is None:
+                continue
+            current_number = int(label_match.group("label"))
+            if (
+                previous_number is not None
+                and current_number != previous_number + 1
+            ):
+                findings.append(
+                    make_range_finding(
+                        check="Clinical.FigureLabelSequence",
+                        severity="warning",
+                        message=(
+                            "Style guide figure format: Number figure "
+                            "labels consecutively within each document "
+                            "section."
+                        ),
+                        match=caption.text,
+                        paragraph=caption.paragraph,
+                        range_start=caption.range_start,
+                        range_end=caption.range_end,
+                    )
+                )
+            previous_number = current_number
+
     return findings

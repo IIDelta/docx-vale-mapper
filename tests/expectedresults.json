@@ -20,8 +20,9 @@
     }
   },
   "a3inclusivelanguage.md": {
-    "expected_total": 24,
+    "expected_total": 25,
     "expected_checks": {
+      "Clinical.AppendixCReview": 1,
       "Clinical.PersonFirstLanguage": 8,
       "Clinical.InclusiveLanguageReview": 9,
       "Clinical.SexIdentityReview": 6,
@@ -97,6 +98,21 @@
     "expected_total": 8,
     "expected_checks": {
       "Clinical.ClinicalDescriptorCase": 8
+    }
+  },
+  "a74numberpresentation.md": {
+    "expected_total": 3,
+    "expected_checks": {
+      "Clinical.NumeralAtSentenceStart": 1,
+      "Clinical.NumberGrouping": 2
+    }
+  },
+  "a83appendixreview.md": {
+    "expected_total": 3,
+    "expected_checks": {
+      "Clinical.AppendixBReview": 1,
+      "Clinical.AppendixCReview": 1,
+      "Clinical.AppendixDReview": 1
     }
   }
 }

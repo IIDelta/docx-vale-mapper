@@ -1,0 +1,36 @@
+# Takeda Style Guide v6.0, Appendix C.
+# Flag preferred-wording candidates whose safe replacement depends on clinical,
+# scientific, or grammatical context. Existing substitution rules handle the
+# unambiguous cases.
+extends: existence
+message: "Takeda preferred-wording review: Review '%s' and use the Appendix C preferred wording where applicable."
+level: warning
+ignorecase: true
+tokens:
+  - '\bacute trial\b'
+  - '\badjunctive\b'
+  - '\badviser\b'
+  - '\bblood sugar\b'
+  - '\bcadaver\b'
+  - '\bchief complaint\b'
+  - '\bcoinvestigator\b'
+  - '\bcolony stimulating factor\b'
+  - '\bdoctor\b'
+  - '\bemergency room\b'
+  - '\besthetics\b'
+  - '\bexam\b'
+  - '\bfall off\b'
+  - '\bgive rise to\b'
+  - '\bglycosylated hemoglobin\b'
+  - '\bheart attack\b'
+  - '\bhistopathologic\b'
+  - '\bleverage\b'
+  - '\bnormal range\b'
+  - '\bpreemie\b'
+  - '\bprepped\b'
+  - '\brespiratory infection\b'
+  - '\bspin down\b'
+  - '\bteenage\b'
+  - '\btherapy of\b'
+  - '\btreatment for\b'
+  - '\bupon\b'
