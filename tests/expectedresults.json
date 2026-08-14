@@ -98,6 +98,12 @@
     "expected_checks": {
       "Clinical.ClinicalDescriptorCase": 8
     }
+  },
+  "a104meddrahierarchy.md": {
+    "expected_total": 6,
+    "expected_checks": {
+      "Clinical.MedDRAHierarchyCase": 6
+    }
   }
 }
 

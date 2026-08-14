@@ -2,10 +2,15 @@
 __pycache__/
 *.csv
 *.docx
-*.md
 
-# Local generated registry and import reports
+# Local generated registry and report artifacts
 data/*.sqlite
 reports/*.json
+reports/*.csv
+reports/*.md
 
+# Document-specific generated audit artifacts
 *.abbreviationreview.json
+*.audit_summary.json
+*.audit_manifest.json
+*.listgeneration.json
