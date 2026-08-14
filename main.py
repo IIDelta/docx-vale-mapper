@@ -87,6 +87,9 @@ from validators.auditprofile import (
     is_advanced_profile,
     normalize_audit_profile,
 )
+from validators.commentverification import (
+    vale_anchor_is_verified,
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 
@@ -1643,6 +1646,8 @@ def write_audit_summary(
     structural_findings: list[dict],
     final_findings: list[dict],
     suppressed_findings,
+    comment_metrics: dict,
+    paragraph_records: list[ParagraphRecord],
 ) -> None:
     """
     Write a local audit summary sidecar for review and diagnostics.
@@ -1652,6 +1657,11 @@ def write_audit_summary(
         ".audit_summary.json"
     )
 
+    content_zone_counts = Counter(
+        record.content_zone
+        for record in paragraph_records
+    )
+
     summary = {
         "audit_profile": audit_profile,
         "vale_finding_count": len(vale_findings),
@@ -1659,6 +1669,24 @@ def write_audit_summary(
             structural_findings
         ),
         "final_finding_count": len(final_findings),
+        "candidate_comment_count": comment_metrics[
+            "candidate_comment_count"
+        ],
+        "inserted_comment_count": comment_metrics[
+            "inserted_comment_count"
+        ],
+        "skipped_comment_count": sum(
+            comment_metrics[
+                "skipped_comment_reasons"
+            ].values()
+        ),
+        "skipped_comment_reasons": dict(
+            sorted(
+                comment_metrics[
+                    "skipped_comment_reasons"
+                ].items()
+            )
+        ),
         "final_rule_counts": dict(
             sorted(
                 Counter(
@@ -1672,6 +1700,9 @@ def write_audit_summary(
         ),
         "suppressed_rule_counts": dict(
             sorted(suppressed_findings.items())
+        ),
+        "content_zone_counts": dict(
+            sorted(content_zone_counts.items())
         ),
     }
 
@@ -1886,6 +1917,15 @@ def run_scan_thread(
                 encoding='utf-8'
             )
             progress_var.set(66) # Scan complete, bump bar to 66%
+
+            vale_errors: list[dict] = []
+            errors: list[dict] = []
+
+            comment_metrics = {
+                "candidate_comment_count": 0,
+                "inserted_comment_count": 0,
+                "skipped_comment_reasons": Counter(),
+            }
             
             if process.stdout.strip():
                 vale_results = json.loads(process.stdout)
@@ -1906,14 +1946,10 @@ def run_scan_thread(
                 errors = deduplicate_findings(
                     context_filtered_errors
                 )
-                write_audit_summary(
-                    output_path=Path(abs_output),
-                    audit_profile=audit_profile,
-                    vale_findings=vale_errors,
-                    structural_findings=structural_findings,
-                    final_findings=errors,
-                    suppressed_findings=suppressed_findings,
-                )
+                comment_metrics[
+                    "candidate_comment_count"
+                ] = len(errors)
+
 
                 if suppressed_findings:
                     print(
@@ -2111,6 +2147,29 @@ def run_scan_thread(
                                 "Clinical.UnknownRule",
                             )
 
+                            # Vale findings include a Span. Structural findings use dedicated
+                            # ranges and are not checked by this text-equivalence gate.
+                            if (
+                                isinstance(error.get("Span"), list)
+                                and match_text
+                            ):
+                                if not vale_anchor_is_verified(
+                                    word_range_text=target_range.Text,
+                                    vale_match_text=str(match_text),
+                                ):
+                                    print(
+                                        "Skipping unverified Vale anchor: "
+                                        f"{rule_id} -> '{match_text}' "
+                                        f"(Word range: '{target_range.Text}')"
+                                    )
+
+                                    comment_metrics[
+                                        "skipped_comment_reasons"
+                                    ]["unverified_vale_anchor"] += 1
+
+                                    continue
+
+
                             # Vale findings include a Span array. Structural findings do not.
                             # For Vale findings, only insert a comment when the selected Word
                             # range actually contains the expected matched text.
@@ -2161,18 +2220,37 @@ def run_scan_thread(
                                     Text=comment_text,
                                 )
 
+                                comment_metrics[
+                                    "inserted_comment_count"
+                                ] += 1
+
                             except Exception as comment_error:
                                 print(
                                     "Comment insertion skipped for "
                                     f"{rule_id}: {comment_error}"
                                 )
 
+                                comment_metrics[
+                                    "skipped_comment_reasons"
+                                ]["word_comment_insertion_error"] += 1
+
+
                         # Update progress for the final 33% of the bar.
                         progress_var.set(
                             66 + ((idx / total_errors) * 34)
                         )
 
-                        
+            write_audit_summary(
+                output_path=Path(abs_output),
+                audit_profile=audit_profile,
+                vale_findings=vale_errors,
+                structural_findings=structural_findings,
+                final_findings=errors,
+                suppressed_findings=suppressed_findings,
+                comment_metrics=comment_metrics,
+                paragraph_records=paragraph_records,
+            )
+
             status_var.set("Saving audited document...")
             audit_stage = "Saving audited document"
             doc.SaveAs2(abs_output)
