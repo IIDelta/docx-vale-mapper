@@ -64,6 +64,9 @@ from validators.appendixvalidator import (
     find_appendix_context,
     validate_appendix_elements,
 )
+from validators.valespan import (
+    vale_span_to_word_range,
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 
@@ -361,6 +364,34 @@ def extract_abbreviation_entries_from_word(
     return best_entries
 
 
+def vale_text_with_offset(
+    raw_text: str,
+) -> tuple[str, int]:
+    """
+    Produce Vale input text while preserving Word character offsets.
+
+    Word control characters become spaces, but internal whitespace is
+    not collapsed. This keeps Vale spans aligned with Word ranges.
+    """
+
+    offset_preserving_text = (
+        raw_text.replace("\r", " ")
+        .replace("\x07", " ")
+        .replace("\x0b", " ")
+        .replace("\n", " ")
+    )
+
+    leading_offset = len(
+        offset_preserving_text
+    ) - len(
+        offset_preserving_text.lstrip()
+    )
+
+    vale_text = offset_preserving_text.strip()
+
+    return vale_text, leading_offset
+
+
 def build_paragraph_records(doc):
     """
     Extract body paragraphs, retain Word location metadata, and build
@@ -378,7 +409,11 @@ def build_paragraph_records(doc):
         raw_text = paragraph.Range.Text
         normalized_text = clean_text(raw_text)
 
-        if not normalized_text:
+        vale_text, vale_offset = vale_text_with_offset(
+            raw_text
+        )
+
+        if not normalized_text or not vale_text:
             continue
 
         try:
@@ -412,14 +447,13 @@ def build_paragraph_records(doc):
 
         paragraph_records.append(record)
         line_to_range[current_line] = (
-            paragraph.Range.Start,
-            max(
-                paragraph.Range.Start,
-                paragraph.Range.End - 1,
-            ),
+            paragraph.Range.Start + vale_offset,
+            paragraph.Range.Start
+            + vale_offset
+            + len(vale_text),
         )
 
-        batch_parts.append(normalized_text)
+        batch_parts.append(vale_text)
 
 
         current_line += 2
@@ -1420,17 +1454,27 @@ def run_scan_thread(docx_path, output_path, status_var, progress_var, start_btn)
                                     paragraph_range
                                 )
 
-                                document_end = doc.Content.End
-
-                                safe_start = max(
-                                    0,
-                                    min(paragraph_start, document_end - 1),
+                                vale_span_range = vale_span_to_word_range(
+                                    paragraph_start=paragraph_start,
+                                    paragraph_end=paragraph_end,
+                                    span=error.get("Span"),
                                 )
 
-                                safe_end = max(
-                                    safe_start + 1,
-                                    min(paragraph_end, document_end),
-                                )
+                                if vale_span_range is not None:
+                                    safe_start, safe_end = vale_span_range
+
+                                else:
+                                    document_end = doc.Content.End
+
+                                    safe_start = max(
+                                        0,
+                                        min(paragraph_start, document_end - 1),
+                                    )
+
+                                    safe_end = max(
+                                        safe_start + 1,
+                                        min(paragraph_end, document_end),
+                                    )
 
                                 target_range = doc.Range(
                                     safe_start,

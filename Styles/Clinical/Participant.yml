@@ -1,25 +1,32 @@
-# Takeda Style Guide v6.0:
-# Section 3.1 Participant and Trial
-# Section 3.2 Sex and Identity
+# Style guide:
+# Use participant rather than patient, subject, or healthy volunteer
+# when referring to an enrolled clinical-trial individual.
 #
-# In clinical-trial narrative text, use "participant" rather than
-# "patient," "subject," or "healthy volunteer."
-#
-# Cancer-patient and diabetic-patient phrases are excluded because
-# A3 PersonFirstLanguage.yml provides the more specific preferred
-# wording: "participant(s) with cancer/diabetes."
+# The rule is limited to high-confidence trial contexts.
+# Disease-specific cancer and diabetes wording is handled by
+# PersonFirstLanguage.yml.
 
 extends: substitution
-message: "Takeda terminology: Use '%s' instead of '%s' for an enrolled clinical-trial individual."
+message: "Style guide terminology: Use '%s' instead of '%s' for an enrolled clinical-trial individual."
 level: warning
 ignorecase: true
 capitalize: true
 action:
   name: replace
 swap:
-  '(?<!cancer )(?<!diabetic )patients': participants
-  '(?<!cancer )(?<!diabetic )patient(?![- ]reported outcomes?\b)': participant
-  subject: participant
-  subjects: participants
-  healthy volunteer: participant
-  healthy volunteers: participants
+  '(?<!cancer )(?<!diabetic )\bpatients were enrolled\b': participants were enrolled
+  '(?<!cancer )(?<!diabetic )\bpatient was enrolled\b': participant was enrolled
+  '(?<!cancer )(?<!diabetic )\bpatients enrolled\b': participants enrolled
+  '(?<!cancer )(?<!diabetic )\bpatient enrolled\b': participant enrolled
+  '(?<!cancer )(?<!diabetic )\bpatients were randomized\b': participants were randomized
+  '(?<!cancer )(?<!diabetic )\bpatient was randomized\b': participant was randomized
+  '\bsubjects were enrolled\b': participants were enrolled
+  '\bsubject was enrolled\b': participant was enrolled
+  '\bsubjects were randomized\b': participants were randomized
+  '\bsubject was randomized\b': participant was randomized
+  '(?<!cancer )(?<!diabetic )\bpatients received\b': participants received
+  '(?<!cancer )(?<!diabetic )\bpatient received\b': participant received
+  '\bsubjects received\b': participants received
+  '\bsubject received\b': participant received
+  '\bhealthy volunteers were enrolled\b': participants were enrolled
+  '\bhealthy volunteer was enrolled\b': participant was enrolled

@@ -1,13 +1,15 @@
-# Takeda Style Guide v6.0:
-# Appendix C, Correct and Preferred Wording Choices
+# Style guide:
+# Use End of Trial (EOT), not End of Study (EOS).
 
 extends: substitution
-message: "Takeda terminology: Use '%s' instead of '%s'."
+message: "Style guide terminology: Use '%s' instead of '%s'."
 level: error
 ignorecase: true
 capitalize: true
-swap:
-  End of Study: End of Trial
-  EOS: EOT
+nonword: true
 action:
   name: replace
+swap:
+  '\bEnd of Study\s*\(EOS\)(?=\s|$|[.,;:])': 'End of Trial (EOT)'
+  '\bEnd of Study\b(?!\s*\(EOS\))': End of Trial
+  '(?<!End of Study \()EOS\b': EOT

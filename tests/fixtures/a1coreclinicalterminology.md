@@ -1,11 +1,15 @@
-The patient received study drug during the trial.
+Patients were enrolled and received study drug during the trial.
 
-The subjects completed the schedule of events before End of Study.
+Subjects were randomized before treatment.
 
-The healthy volunteers were evaluated for the risk-benefit profile.
+Healthy volunteers were enrolled in the cohort.
+
+The schedule of events ended at End of Study (EOS).
 
 The C25001 trial enrolled participants at 20 sites.
 
-The clinical study report includes the final analysis.
+The risk-benefit profile was reviewed.
 
-The patient-reported outcome questionnaire was completed at baseline.
+Patients with MDS were described in the literature background.
+
+Title of Study: Treatment of Anemia in Patients With MDS
