@@ -48,7 +48,7 @@
       "guide_section": "7.0",
       "topic": "Numbers",
       "status": "implemented_standard",
-      "notes": "Dates, age expressions, selected prose ranges, p values, confidence intervals, operator spacing, percentages, and temperature spacing are implemented."
+      "notes": "Dates, age expressions, selected prose ranges, p values, confidence intervals, operator spacing, percentages, and temperature spacing are implemented. Numeric ratio slash-versus-colon review is now implemented."
     },
     {
       "guide_section": "8.0",
@@ -72,7 +72,7 @@
       "guide_section": "11.0",
       "topic": "References",
       "status": "implemented_advanced",
-      "notes": "Raw external URLs, active hyperlinks, trial aliases, and basic section-reference capitalization are implemented. Citation field protection and EndNote-aware validation are in progress."
+      "notes": "Raw external URLs, active hyperlinks, trial aliases, and basic section-reference capitalization are implemented. Citation field protection and EndNote-aware validation are in progress. Citation placement before punctuation is now reviewed."
     },
     {
       "guide_section": "12.0",
@@ -122,17 +122,7 @@
       "priority": "high"
     },
     {
-      "topic": "Rate and ratio formatting",
-      "target_status": "implemented_advanced",
-      "priority": "medium"
-    },
-    {
       "topic": "Heading capitalization with Word All Caps style awareness",
-      "target_status": "implemented_advanced",
-      "priority": "medium"
-    },
-    {
-      "topic": "Citation placement before punctuation",
       "target_status": "implemented_advanced",
       "priority": "medium"
     },

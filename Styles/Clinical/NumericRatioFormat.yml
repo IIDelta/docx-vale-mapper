@@ -1,0 +1,9 @@
+# Takeda Style Guide v6.0, section 7.5:
+# Use a colon for numeric or abbreviated ratios, for example, 1:1.
+extends: existence
+message: "Style guide ratios: Use a colon, not a forward slash, for a numeric ratio."
+level: warning
+ignorecase: true
+nonword: true
+tokens:
+  - '\b(?:randomi[sz]ed|ratio)\b[^.]{0,60}\b\d+\s*/\s*\d+\b'

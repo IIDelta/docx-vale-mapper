@@ -62,7 +62,7 @@
       "Clinical.TrademarkSymbols": 1,
       "Clinical.Ampersand": 1
     }
-},
+  },
   "a6spellingcapitalization.md": {
     "expected_total": 17,
     "expected_checks": {
@@ -114,6 +114,17 @@
       "Clinical.AppendixCReview": 1,
       "Clinical.AppendixDReview": 1
     }
+  },
+  "a84citationplacement.md": {
+    "expected_total": 2,
+    "expected_checks": {
+      "Clinical.CitationPlacement": 2
+    }
+  },
+  "a75numericratios.md": {
+    "expected_total": 2,
+    "expected_checks": {
+      "Clinical.NumericRatioFormat": 2
+    }
   }
 }
-

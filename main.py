@@ -64,6 +64,10 @@ from validators.appendixvalidator import (
     find_appendix_context,
     validate_appendix_elements,
 )
+from validators.fieldprotection import (
+    protected_field_ranges,
+    ranges_overlap,
+)
 from validators.valespan import (
     resolve_match_offsets,
     vale_match_occurrence_index,
@@ -2261,6 +2265,20 @@ def run_scan_thread(
                     "skipped_comment_reasons"
                 ]["no_target_range"] += 1
 
+                continue
+
+            protected_ranges = protected_field_ranges(doc)
+            if ranges_overlap(
+                int(target_range.Start),
+                int(target_range.End),
+                protected_ranges,
+            ):
+                comment_metrics[
+                    "skipped_comment_reasons"
+                ]["protected_word_field"] += 1
+                print(
+                    "Skipping comment inside protected Word field."
+                )
                 continue
 
             severity = error.get(

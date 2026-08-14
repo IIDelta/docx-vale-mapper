@@ -1,0 +1,12 @@
+# Takeda Style Guide v6.0, section 11.0:
+# Place in-text reference citations before terminal punctuation.
+# This is review-only because a parenthetical statement can be a complete
+# sentence rather than a citation attached to the preceding sentence.
+extends: existence
+message: "Style guide references: Place an in-text citation before the terminal punctuation of the sentence it supports."
+level: warning
+ignorecase: true
+nonword: true
+tokens:
+  - '\.\s+\([^)]*(?:19|20)[0-9]{2}[^)]*\)'
+  - '\.\s+\((?:sponsor data on file|personal communication)[^)]*\)'
