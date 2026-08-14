@@ -1,0 +1,155 @@
+{
+  "version": "1.0",
+  "status_values": [
+    "implemented_standard",
+    "implemented_advanced",
+    "manual_review",
+    "deferred",
+    "not_automatable"
+  ],
+  "coverage": [
+    {
+      "guide_section": "1.0",
+      "topic": "Abbreviations and Acronyms",
+      "status": "implemented_standard",
+      "notes": "Mechanical abbreviation rules, controlled registry, List of Abbreviations checks, first-use checks, candidate review, and list generation are implemented."
+    },
+    {
+      "guide_section": "2.0",
+      "topic": "Spelling",
+      "status": "implemented_advanced",
+      "notes": "Curated American-spelling review and nonpossessive eponym rules are implemented. Broad British-to-American replacement remains deferred because of MedDRA and formal-name exceptions."
+    },
+    {
+      "guide_section": "3.0",
+      "topic": "Terminology and Usage",
+      "status": "implemented_standard",
+      "notes": "Core clinical terminology, preferred wording, lean writing, inclusive language, participant terminology, dates, ages, and selected quantitative conventions are implemented."
+    },
+    {
+      "guide_section": "4.0",
+      "topic": "Capitalization",
+      "status": "implemented_advanced",
+      "notes": "Labels followed by numerals, clinical descriptors, generic document references, and selected eponyms are implemented. Heading title case is deferred because Word All Caps style formatting requires a separate formatting-aware approach."
+    },
+    {
+      "guide_section": "5.0",
+      "topic": "Punctuation",
+      "status": "implemented_standard",
+      "notes": "Multiple punctuation spaces are currently production-suppressed. Forward slash, numeral apostrophe, email, dash mechanics, and known compound forms are implemented."
+    },
+    {
+      "guide_section": "6.0",
+      "topic": "Lists",
+      "status": "implemented_advanced",
+      "notes": "List introduction, single-item list, capitalization, and punctuation checks are implemented but remain Advanced-only pending further protocol calibration."
+    },
+    {
+      "guide_section": "7.0",
+      "topic": "Numbers",
+      "status": "implemented_standard",
+      "notes": "Dates, age expressions, selected prose ranges, p values, confidence intervals, operator spacing, percentages, and temperature spacing are implemented."
+    },
+    {
+      "guide_section": "8.0",
+      "topic": "Symbols and Units",
+      "status": "implemented_advanced",
+      "notes": "Trademark symbols, ampersands, selected symbol spacing, and mathematical notation are implemented. Nonbreaking spaces, rates, ratios, equations, and rounding remain Advanced or Manual Review."
+    },
+    {
+      "guide_section": "9.0",
+      "topic": "Tables, Figures, and Appendices",
+      "status": "implemented_advanced",
+      "notes": "Table headings, zero values, captions, footnotes, figures, and appendix numbering are implemented but remain Advanced-only because complex protocols require context calibration."
+    },
+    {
+      "guide_section": "10.0",
+      "topic": "Typography",
+      "status": "implemented_advanced",
+      "notes": "Scientific species, Latin expressions, chemical prefixes, and radiolabel formatting are implemented through Word formatting inspection."
+    },
+    {
+      "guide_section": "11.0",
+      "topic": "References",
+      "status": "implemented_advanced",
+      "notes": "Raw external URLs, active hyperlinks, trial aliases, and basic section-reference capitalization are implemented. Citation field protection and EndNote-aware validation are in progress."
+    },
+    {
+      "guide_section": "12.0",
+      "topic": "Appendices",
+      "status": "implemented_advanced",
+      "notes": "Appendix table and figure prefix/sequence checks are implemented. Broader appendix-document structure remains deferred."
+    },
+    {
+      "guide_section": "Appendix A",
+      "topic": "Abbreviations Not Requiring Expansion",
+      "status": "implemented_standard",
+      "notes": "Protected-term policy and registry synchronization are implemented."
+    },
+    {
+      "guide_section": "Appendix B",
+      "topic": "Redundant Phrases",
+      "status": "implemented_standard",
+      "notes": "Curated redundancy checks are implemented."
+    },
+    {
+      "guide_section": "Appendix C",
+      "topic": "Correct and Preferred Wording",
+      "status": "implemented_standard",
+      "notes": "Core preferred wording, terminology, trial naming, and lean-writing checks are implemented."
+    },
+    {
+      "guide_section": "Appendix D",
+      "topic": "Commonly Misused Words and Phrases",
+      "status": "implemented_advanced",
+      "notes": "Comprise usage and selected terminology checks are implemented. Grammar-dependent entries remain Manual Review."
+    }
+  ],
+  "remaining_backlog": [
+    {
+      "topic": "Citation field protection",
+      "target_status": "implemented_standard",
+      "priority": "high"
+    },
+    {
+      "topic": "EndNote and bibliography field detection",
+      "target_status": "implemented_advanced",
+      "priority": "high"
+    },
+    {
+      "topic": "Nonbreaking spaces between numeric values and units",
+      "target_status": "implemented_advanced",
+      "priority": "high"
+    },
+    {
+      "topic": "Rate and ratio formatting",
+      "target_status": "implemented_advanced",
+      "priority": "medium"
+    },
+    {
+      "topic": "Heading capitalization with Word All Caps style awareness",
+      "target_status": "implemented_advanced",
+      "priority": "medium"
+    },
+    {
+      "topic": "Citation placement before punctuation",
+      "target_status": "implemented_advanced",
+      "priority": "medium"
+    },
+    {
+      "topic": "Trial title quotation review",
+      "target_status": "manual_review",
+      "priority": "medium"
+    },
+    {
+      "topic": "Rounding and denominator correctness",
+      "target_status": "manual_review",
+      "priority": "medium"
+    },
+    {
+      "topic": "Figure image quality and resolution",
+      "target_status": "manual_review",
+      "priority": "low"
+    }
+  ]
+}
