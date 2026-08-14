@@ -2505,6 +2505,14 @@ def start_process(
     start_btn,
     audit_profile_var,
 ):
+    """
+    Validate user input and launch the audit worker.
+
+    This function prevents source overwrite, validates DOCX paths,
+    prompts before overwriting an existing output, and passes the
+    selected audit profile to the worker thread.
+    """
+
     in_path = input_entry.get().strip()
     out_path = output_entry.get().strip()
 
@@ -2515,30 +2523,75 @@ def start_process(
         )
         return
 
-    if not os.path.exists(in_path):
+    source_path = Path(in_path)
+    output_path = Path(out_path)
+
+    if not source_path.is_file():
         messagebox.showerror(
             "File Not Found",
-            "The selected input file does not exist.",
-        )
-        return
-
-    if os.path.abspath(in_path) == os.path.abspath(out_path):
-        messagebox.showerror(
-            "Invalid Output",
             (
-                "The output file must be different from the "
-                "source document."
+                "The selected input file does not exist:\n\n"
+                f"{source_path}"
             ),
         )
         return
 
-    # Convert the user-facing GUI selection into the internal
-    # audit profile value before starting the thread.
+    if source_path.suffix.casefold() != ".docx":
+        messagebox.showerror(
+            "Invalid Input",
+            (
+                "The input file must be a DOCX document.\n\n"
+                f"Selected file: {source_path.name}"
+            ),
+        )
+        return
+
+    if output_path.suffix.casefold() != ".docx":
+        messagebox.showerror(
+            "Invalid Output",
+            (
+                "The output file must use the .docx extension.\n\n"
+                f"Selected file: {output_path.name}"
+            ),
+        )
+        return
+
+    if (
+        source_path.resolve().casefold()
+        == output_path.resolve().casefold()
+    ):
+        messagebox.showerror(
+            "Invalid Output",
+            (
+                "The output file must be different from the "
+                "source document.\n\n"
+                "The source document will never be overwritten."
+            ),
+        )
+        return
+
+    if output_path.exists():
+        overwrite_confirmed = messagebox.askyesno(
+            "Overwrite Existing Output?",
+            (
+                "An output file already exists:\n\n"
+                f"{output_path}\n\n"
+                "The existing output file will be replaced. "
+                "The source document will not be changed.\n\n"
+                "Continue?"
+            ),
+        )
+
+        if not overwrite_confirmed:
+            status_var.set(
+                "Audit cancelled. Existing output was not overwritten."
+            )
+            return
+
     audit_profile = normalize_audit_profile(
         audit_profile_var.get()
     )
 
-    # Disable button to prevent multiple concurrent audits.
     start_btn.config(state=tk.DISABLED)
 
     status_var.set(
@@ -2550,8 +2603,8 @@ def start_process(
     thread = threading.Thread(
         target=run_scan_thread,
         args=(
-            in_path,
-            out_path,
+            str(source_path),
+            str(output_path),
             status_var,
             progress_var,
             start_btn,
@@ -2613,13 +2666,16 @@ def open_review_for_selected_output(
 
 
 def build_gui():
+    """
+    Build and display the main audit application window.
+    """
+
     root = tk.Tk()
 
     root.title("Medical Writer - Vale Auditor")
-    root.geometry("600x400")
+    root.geometry("650x410")
     root.resizable(False, False)
 
-    # Padding and layout configuration
     frame = ttk.Frame(
         root,
         padding="20",
@@ -2630,7 +2686,14 @@ def build_gui():
         expand=True,
     )
 
-    # Input Row
+    frame.columnconfigure(
+        1,
+        weight=1,
+    )
+
+    # ------------------------------------------------------------
+    # Input document
+    # ------------------------------------------------------------
     ttk.Label(
         frame,
         text="Target Protocol (.docx):",
@@ -2643,12 +2706,13 @@ def build_gui():
 
     input_entry = ttk.Entry(
         frame,
-        width=50,
+        width=55,
     )
 
     input_entry.grid(
         row=0,
         column=1,
+        sticky=tk.EW,
         padx=10,
         pady=(0, 5),
     )
@@ -2666,7 +2730,9 @@ def build_gui():
         pady=(0, 5),
     )
 
-    # Output Row
+    # ------------------------------------------------------------
+    # Output document
+    # ------------------------------------------------------------
     ttk.Label(
         frame,
         text="Output Audited File:",
@@ -2679,12 +2745,13 @@ def build_gui():
 
     output_entry = ttk.Entry(
         frame,
-        width=50,
+        width=55,
     )
 
     output_entry.grid(
         row=1,
         column=1,
+        sticky=tk.EW,
         padx=10,
         pady=10,
     )
@@ -2701,7 +2768,9 @@ def build_gui():
         pady=10,
     )
 
-    # Audit Profile Row
+    # ------------------------------------------------------------
+    # Audit profile
+    # ------------------------------------------------------------
     audit_profile_var = tk.StringVar(
         value="Standard Audit"
     )
@@ -2724,7 +2793,7 @@ def build_gui():
             "Advanced Structural Review",
         ],
         state="readonly",
-        width=30,
+        width=32,
     )
 
     audit_profile_combo.grid(
@@ -2735,7 +2804,24 @@ def build_gui():
         pady=(5, 5),
     )
 
-    # Progress and Status
+    ttk.Label(
+        frame,
+        text=(
+            "Standard Audit is recommended for real protocols. "
+            "Advanced Structural Review is experimental."
+        ),
+        wraplength=440,
+    ).grid(
+        row=3,
+        column=1,
+        sticky=tk.W,
+        padx=10,
+        pady=(0, 8),
+    )
+
+    # ------------------------------------------------------------
+    # Status and progress
+    # ------------------------------------------------------------
     status_var = tk.StringVar()
     status_var.set("Ready.")
 
@@ -2743,11 +2829,11 @@ def build_gui():
         frame,
         textvariable=status_var,
     ).grid(
-        row=3,
+        row=4,
         column=0,
         columnspan=3,
         sticky=tk.W,
-        pady=(20, 5),
+        pady=(15, 5),
     )
 
     progress_var = tk.DoubleVar()
@@ -2759,14 +2845,16 @@ def build_gui():
     )
 
     progress_bar.grid(
-        row=4,
+        row=5,
         column=0,
         columnspan=3,
         sticky=(tk.W, tk.E),
         pady=5,
     )
 
-    # Run Audit Button
+    # ------------------------------------------------------------
+    # Audit action
+    # ------------------------------------------------------------
     start_btn = ttk.Button(
         frame,
         text="Run Audit",
@@ -2781,13 +2869,15 @@ def build_gui():
     )
 
     start_btn.grid(
-        row=5,
+        row=6,
         column=0,
         columnspan=3,
-        pady=20,
+        pady=(20, 10),
     )
 
-    # Abbreviation Review Button 
+    # ------------------------------------------------------------
+    # Abbreviation review
+    # ------------------------------------------------------------
     review_btn = ttk.Button(
         frame,
         text="Review Abbreviations",
@@ -2798,7 +2888,7 @@ def build_gui():
     )
 
     review_btn.grid(
-        row=6,
+        row=7,
         column=0,
         columnspan=3,
         pady=(0, 10),
