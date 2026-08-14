@@ -750,6 +750,46 @@ def add_reference_findings(
 
     return findings
 
+
+def is_schedule_table(
+    table,
+) -> bool:
+    """
+    Return True for Schedule of Activities / schedule-style tables.
+
+    These tables are template-driven and should not receive ordinary
+    data-table sentence-case or zero-value checks.
+    """
+
+    try:
+        table_text = clean_text(
+            table.Range.Text
+        ).casefold()
+
+    except Exception:
+        return False
+
+    schedule_markers = (
+        "schedule of activities",
+        "schedule of assessments",
+        "visit window",
+        "screening",
+        "treatment period",
+        "follow-up",
+        "follow up",
+        "cycle",
+        "day",
+        "week",
+    )
+
+    marker_count = sum(
+        marker in table_text
+        for marker in schedule_markers
+    )
+
+    return marker_count >= 2
+
+
 def add_table_findings(
     doc,
     paragraph_records: list[ParagraphRecord],
@@ -790,12 +830,20 @@ def add_table_findings(
         )
 
     cells: list[TableCellRecord] = []
+    seen_cell_ranges: set[tuple[int, int]] = set()
 
     for table_index in range(
         1,
         doc.Tables.Count + 1,
     ):
         table = doc.Tables.Item(table_index)
+
+        if is_schedule_table(table):
+            print(
+                f"Skipping schedule table {table_index} "
+                "for ordinary data-table validation."
+            )
+            continue
 
         for row_index in range(
             1,
@@ -842,6 +890,23 @@ def add_table_findings(
                 ):
                     continue
 
+                range_start = word_cell.Range.Start
+
+                range_end = max(
+                    word_cell.Range.Start,
+                    word_cell.Range.End - 1,
+                )
+
+                cell_key = (
+                    range_start,
+                    range_end,
+                )
+
+                if cell_key in seen_cell_ranges:
+                    continue
+
+                seen_cell_ranges.add(cell_key)
+
                 cells.append(
                     TableCellRecord(
                         table_index=table_index,
@@ -849,12 +914,8 @@ def add_table_findings(
                         column_index=column_index,
                         text=cell_text,
                         paragraph=paragraph_record,
-                        range_start=word_cell.Range.Start,
-                        # Exclude the Word cell-end marker.
-                        range_end=max(
-                            word_cell.Range.Start,
-                            word_cell.Range.End - 1,
-                        ),
+                        range_start=range_start,
+                        range_end=range_end,
                     )
                 )
 
@@ -908,12 +969,20 @@ def add_caption_footnote_findings(
 
     captions: list[CaptionRecord] = []
     footnotes: list[FootnoteRecord] = []
+    seen_cell_ranges: set[tuple[int, int]] = set()
 
     for table_index in range(
         1,
         doc.Tables.Count + 1,
     ):
         table = doc.Tables.Item(table_index)
+
+        if is_schedule_table(table):
+            print(
+                f"Skipping schedule table {table_index} "
+                "for caption and footnote validation."
+            )
+            continue
 
         preceding_records = [
             record
@@ -967,8 +1036,11 @@ def add_caption_footnote_findings(
                         column_index
                     )
 
+
+                    raw_cell_text = word_cell.Range.Text
+
                     cell_text = clean_text(
-                        word_cell.Range.Text
+                        raw_cell_text
                     )
 
                     paragraph_record = record_for_position(
@@ -985,10 +1057,21 @@ def add_caption_footnote_findings(
                     continue
 
                 range_start = word_cell.Range.Start
+
                 range_end = max(
                     range_start,
                     word_cell.Range.End - 1,
                 )
+
+                cell_key = (
+                    range_start,
+                    range_end,
+                )
+
+                if cell_key in seen_cell_ranges:
+                    continue
+
+                seen_cell_ranges.add(cell_key)
 
                 if cell_text.lower().startswith("table "):
                     captions.append(
@@ -1002,14 +1085,35 @@ def add_caption_footnote_findings(
                         )
                     )
 
-                footnotes.append(
-                    FootnoteRecord(
-                        text=cell_text,
-                        paragraph=paragraph_record,
-                        range_start=range_start,
-                        range_end=range_end,
+                for line_match in re.finditer(
+                    r"[^\r\n\x07]+",
+                    raw_cell_text,
+                ):
+                    footnote_text = clean_text(
+                        line_match.group(0)
                     )
-                )
+
+                    if not footnote_text:
+                        continue
+
+                    footnote_start = (
+                        range_start
+                        + line_match.start()
+                    )
+
+                    footnote_end = (
+                        range_start
+                        + line_match.end()
+                    )
+
+                    footnotes.append(
+                        FootnoteRecord(
+                            text=footnote_text,
+                            paragraph=paragraph_record,
+                            range_start=footnote_start,
+                            range_end=footnote_end,
+                        )
+                    )
 
     findings.extend(
         validate_captions(captions)
@@ -1059,11 +1163,26 @@ def add_figure_findings(
         )
 
     captions: list[CaptionRecord] = []
+    seen_caption_ranges: set[
+        tuple[int, int, str]
+    ] = set()
+
 
     for record in sorted_records:
         if record.text.strip().lower().startswith(
             "figure "
         ):
+            caption_key = (
+                record.range_start,
+                record.range_end,
+                record.text.casefold(),
+            )
+
+            if caption_key in seen_caption_ranges:
+                continue
+
+            seen_caption_ranges.add(caption_key)
+
             captions.append(
                 CaptionRecord(
                     kind="Figure",
@@ -1235,11 +1354,24 @@ def add_appendix_findings(
             range_end=record.range_end,
         )
 
+    seen_cell_ranges: set[tuple[int, int]] = set()
+
     for table_index in range(
         1,
         doc.Tables.Count + 1,
     ):
         table = doc.Tables.Item(table_index)
+
+        if is_schedule_table(table):
+            continue
+
+
+        if is_schedule_table(table):
+            print(
+                f"Skipping schedule table {table_index} "
+                "for caption and footnote validation."
+            )
+            continue
 
         for row_index in range(
             1,
@@ -1287,14 +1419,28 @@ def add_appendix_findings(
                 ):
                     continue
 
+                range_start = word_cell.Range.Start
+
+                range_end = max(
+                    word_cell.Range.Start,
+                    word_cell.Range.End - 1,
+                )
+
+                cell_key = (
+                    range_start,
+                    range_end,
+                )
+
+                if cell_key in seen_cell_ranges:
+                    continue
+
+                seen_cell_ranges.add(cell_key)
+
                 add_element(
                     text=cell_text,
                     paragraph_record=paragraph_record,
-                    range_start=word_cell.Range.Start,
-                    range_end=max(
-                        word_cell.Range.Start,
-                        word_cell.Range.End - 1,
-                    ),
+                    range_start=range_start,
+                    range_end=range_end,
                 )
 
     findings.extend(
