@@ -38,8 +38,10 @@ def serialize_finding(finding: dict[str, Any]) -> dict[str, Any]:
 def enrich_finding(finding: dict[str, Any], record) -> dict[str, Any]:
     result = serialize_finding(finding)
     if record is not None:
-        result.setdefault("ParagraphIndex", record.index)
-        result.setdefault("Line", record.line)
+        if result.get("ParagraphIndex") is None:
+            result["ParagraphIndex"] = record.index
+        if result.get("Line") is None:
+            result["Line"] = record.line
         result["Context"] = {
             "content_zone": record.content_zone,
             "section_context": record.section_context,
