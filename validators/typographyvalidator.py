@@ -178,3 +178,38 @@ def validate_typography_paragraph(
             )
 
     return findings
+
+UNIT_NONBREAKING_SPACE_PATTERN = re.compile(
+    r"(?<![A-Za-z0-9])"
+    r"\d+(?:\.\d+)? "
+    r"(?:µg|ug|mg|g|kg|ng|pg|mL|L|dL|mm|cm|m|km|min|h|s|"
+    r"day|days|week|weeks|month|months|year|years)\b"
+)
+
+
+def validate_unit_nonbreaking_spaces(
+    paragraph: ParagraphRecord,
+    raw_text: str,
+) -> list[dict]:
+    """Require nonbreaking spaces between numeric values and units in body text."""
+    if paragraph.content_zone != "body_narrative":
+        return []
+
+    findings: list[dict] = []
+
+    for match in UNIT_NONBREAKING_SPACE_PATTERN.finditer(raw_text):
+        findings.append(
+            make_finding(
+                check="Clinical.UnitNonbreakingSpace",
+                severity="warning",
+                message=(
+                    "Style guide units: Use a nonbreaking space between a "
+                    "numeric value and its unit in body text."
+                ),
+                match=match.group(0),
+                paragraph=paragraph,
+            )
+        )
+
+    return findings
+

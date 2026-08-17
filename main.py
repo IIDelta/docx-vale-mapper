@@ -35,6 +35,7 @@ from validators.listvalidator import (
     validate_list_structure,
 )
 from validators.typographyvalidator import (
+    validate_unit_nonbreaking_spaces,
     validate_typography_paragraph,
 )
 from validators.referencevalidator import (
@@ -710,6 +711,12 @@ def add_typography_findings(
                 paragraph=record,
                 offset_preserving_text=offset_preserving_text,
                 get_format=get_format,
+            )
+        )
+        findings.extend(
+            validate_unit_nonbreaking_spaces(
+                paragraph=record,
+                raw_text=raw_text,
             )
         )
 

@@ -54,7 +54,7 @@
       "guide_section": "8.0",
       "topic": "Symbols and Units",
       "status": "implemented_advanced",
-      "notes": "Trademark symbols, ampersands, selected symbol spacing, and mathematical notation are implemented. Nonbreaking spaces, rates, ratios, equations, and rounding remain Advanced or Manual Review."
+      "notes": "Trademark symbols, ampersands, selected symbol spacing, and mathematical notation are implemented. Nonbreaking spaces, rates, ratios, equations, and rounding remain Advanced or Manual Review. Nonbreaking-space review is implemented for eligible body text."
     },
     {
       "guide_section": "9.0",
@@ -113,11 +113,6 @@
     },
     {
       "topic": "EndNote and bibliography field detection",
-      "target_status": "implemented_advanced",
-      "priority": "high"
-    },
-    {
-      "topic": "Nonbreaking spaces between numeric values and units",
       "target_status": "implemented_advanced",
       "priority": "high"
     },
