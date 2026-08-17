@@ -30,7 +30,7 @@
       "guide_section": "4.0",
       "topic": "Capitalization",
       "status": "implemented_advanced",
-      "notes": "Labels followed by numerals, clinical descriptors, generic document references, and selected eponyms are implemented. Heading title case is deferred because Word All Caps style formatting requires a separate formatting-aware approach."
+      "notes": "Labels followed by numerals, clinical descriptors, generic document references, and selected eponyms are implemented. Heading title case is deferred because Word All Caps style formatting requires a separate formatting-aware approach. Heading title-case review now respects Word All Caps and Small Caps formatting."
     },
     {
       "guide_section": "5.0",
@@ -106,11 +106,6 @@
     }
   ],
   "remaining_backlog": [
-    {
-      "topic": "Heading capitalization with Word All Caps style awareness",
-      "target_status": "implemented_advanced",
-      "priority": "medium"
-    },
     {
       "topic": "Trial title quotation review",
       "target_status": "manual_review",

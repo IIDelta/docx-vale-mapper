@@ -38,6 +38,9 @@ from validators.typographyvalidator import (
     validate_unit_nonbreaking_spaces,
     validate_typography_paragraph,
 )
+from validators.headingvalidator import (
+    validate_heading_paragraph,
+)
 from validators.referencevalidator import (
     validate_active_external_link,
     validate_reference_text,
@@ -711,6 +714,12 @@ def add_typography_findings(
                 "superscript": (
                     matched_range.Font.Superscript == -1
                 ),
+                "all_caps": (
+                    matched_range.Font.AllCaps == -1
+                ),
+                "small_caps": (
+                    matched_range.Font.SmallCaps == -1
+                ),
             }
 
         findings.extend(
@@ -718,6 +727,13 @@ def add_typography_findings(
                 paragraph=record,
                 offset_preserving_text=offset_preserving_text,
                 get_format=get_format,
+            )
+        )
+        findings.extend(
+            validate_heading_paragraph(
+                paragraph=record,
+                text=offset_preserving_text,
+                format_state=get_format(0, len(offset_preserving_text)),
             )
         )
         findings.extend(
