@@ -37,6 +37,7 @@ class FootnoteRecord:
     paragraph: ParagraphRecord
     range_start: int = 0
     range_end: int = 0
+    container_key: str = ""
 
 
 def make_range_finding(
@@ -345,4 +346,84 @@ def validate_footnotes(
                 )
             )
 
+    findings.extend(validate_footnote_group_order(footnotes))
     return findings
+
+FOOTNOTE_LETTER_PATTERN = re.compile(
+    r"^(?P<letter>[a-z])(?:\s|,)",
+    flags=re.IGNORECASE,
+)
+
+
+def footnote_category(text: str) -> int | None:
+    """Return source/general/statistical/lettered order for a footnote."""
+    stripped = text.strip()
+    lowered = stripped.casefold()
+    if lowered.startswith("source:"):
+        return 0
+    if re.match(r"^[*†]\s+p\s*[<=>]", stripped, flags=re.IGNORECASE):
+        return 2
+    if FOOTNOTE_LETTER_PATTERN.match(stripped):
+        return 3
+    if is_table_footnote_like(stripped):
+        return 1
+    return None
+
+
+def validate_footnote_group_order(
+    footnotes: list[FootnoteRecord],
+) -> list[dict]:
+    """Validate recognized footnote category order and letter progression."""
+    grouped: dict[str, list[FootnoteRecord]] = {}
+    for footnote in footnotes:
+        if footnote_category(footnote.text) is None:
+            continue
+        grouped.setdefault(footnote.container_key or "__document__", []).append(footnote)
+
+    findings: list[dict] = []
+    for group in grouped.values():
+        previous_category = -1
+        previous_letter = ""
+        for footnote in sorted(group, key=lambda item: item.range_start):
+            category = footnote_category(footnote.text)
+            if category is None:
+                continue
+            if category < previous_category:
+                findings.append(
+                    make_range_finding(
+                        check="Clinical.FootnoteOrder",
+                        severity="warning",
+                        message=(
+                            "Style guide footnote format: Present source, "
+                            "general, statistical, then lettered footnotes."
+                        ),
+                        match=footnote.text,
+                        paragraph=footnote.paragraph,
+                        range_start=footnote.range_start,
+                        range_end=footnote.range_end,
+                    )
+                )
+            previous_category = max(previous_category, category)
+
+            letter_match = FOOTNOTE_LETTER_PATTERN.match(footnote.text.strip())
+            if letter_match is None:
+                continue
+            current_letter = letter_match.group("letter").casefold()
+            if previous_letter and ord(current_letter) != ord(previous_letter) + 1:
+                findings.append(
+                    make_range_finding(
+                        check="Clinical.FootnoteLetterSequence",
+                        severity="warning",
+                        message=(
+                            "Style guide footnote format: Use lowercase "
+                            "letter designators in alphabetical order."
+                        ),
+                        match=footnote.text,
+                        paragraph=footnote.paragraph,
+                        range_start=footnote.range_start,
+                        range_end=footnote.range_end,
+                    )
+                )
+            previous_letter = current_letter
+    return findings
+

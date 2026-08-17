@@ -1163,6 +1163,7 @@ def add_caption_footnote_findings(
                             paragraph=paragraph_record,
                             range_start=footnote_start,
                             range_end=footnote_end,
+                            container_key=f"table:{table_index}",
                         )
                     )
 
