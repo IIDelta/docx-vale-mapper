@@ -44,14 +44,27 @@ def build_comment_plan(findings: list[dict[str, Any]], policy: dict[str, Any]) -
         buckets[disposition(finding, policy)].append(finding)
 
     auto_fix_plan = []
+    occurrence_counts: dict[tuple[str, int | None, str], int] = {}
     for finding in buckets["auto_fix"]:
+        rule_id = finding.get("Check", "")
+        paragraph_index = finding.get("ParagraphIndex")
+        match_text = finding.get("Match", "")
+        occurrence_key = (rule_id, paragraph_index, match_text)
+        occurrence_index = occurrence_counts.get(occurrence_key, 0)
+        occurrence_counts[occurrence_key] = occurrence_index + 1
+        context = finding.get("Context", {})
         auto_fix_plan.append({
-            "rule_id": finding.get("Check"),
-            "match": finding.get("Match"),
+            "rule_id": rule_id,
+            "match": match_text,
             "replacement": finding.get("Action", {}).get("Params", [""])[0],
             "line": finding.get("Line"),
-            "paragraph_index": finding.get("ParagraphIndex"),
-            "context": finding.get("Context", {}),
+            "paragraph_index": paragraph_index,
+            "range_start": finding.get("RangeStart"),
+            "range_end": finding.get("RangeEnd"),
+            "span": finding.get("Span"),
+            "occurrence_index": occurrence_index,
+            "paragraph_text": context.get("paragraph_text", ""),
+            "context": context,
         })
 
     grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
