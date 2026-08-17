@@ -580,13 +580,24 @@ def build_paragraph_records(doc):
         )
 
 
+        try:
+            paragraph_range = paragraph.Range.Duplicate
+            paragraph_start = int(paragraph_range.Start)
+            paragraph_end = int(paragraph_range.End)
+        except Exception as paragraph_range_error:
+            print(
+                "Skipping unavailable Word paragraph "
+                f"{index}: {paragraph_range_error}"
+            )
+            continue
+
         record = ParagraphRecord(
             index=index,
             line=current_line,
             text=normalized_text,
             style_name=style_name,
-            range_start=paragraph.Range.Start,
-            range_end=paragraph.Range.End,
+            range_start=paragraph_start,
+            range_end=paragraph_end,
             list_marker=list_marker,
             is_in_table=is_in_table,
             is_heading=is_heading,
@@ -597,8 +608,8 @@ def build_paragraph_records(doc):
 
         paragraph_records.append(record)
         line_to_range[current_line] = (
-            paragraph.Range.Start + vale_offset,
-            paragraph.Range.Start
+            paragraph_start + vale_offset,
+            paragraph_start
             + vale_offset
             + len(vale_text),
         )
@@ -2153,6 +2164,12 @@ def run_scan_thread(
             f"{total_errors} selected; "
             f"{len(deferred_findings)} deferred."
         )
+
+        status_var.set(
+            f"Step 3/3: Injecting {total_errors} prioritized comments "
+            f"from {len(errors)} findings..."
+        )
+        progress_var.set(66)
 
         for idx, error in enumerate(
             ordered_errors,

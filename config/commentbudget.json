@@ -1,6 +1,6 @@
 {
-  "max_comments": 150,
-  "max_comments_per_rule": 30,
+  "max_comments": 50,
+  "max_comments_per_rule": 10,
   "severity_order": [
     "error",
     "warning",
