@@ -1,10 +1,9 @@
 # Takeda Style Guide v6.0, section 7.1:
-# Do not begin running-text sentences with numerals. This rule is deliberately
-# review-only because a writer must decide whether spelling out the number or
-# recasting the sentence produces the clearest result.
+# Review integer-led narrative sentences only. Decimal values and section
+# identifiers require structural or editorial context and are not flagged.
 extends: existence
 message: "Style guide numbers: Do not begin a running-text sentence with a numeral; spell it out or recast the sentence."
 level: warning
-scope: sentence
+nonword: true
 tokens:
-  - '^\s*\d+(?:\.\d+)?\b'
+  - '^\s*[1-9]\d{0,2}\s+[A-Za-z]'

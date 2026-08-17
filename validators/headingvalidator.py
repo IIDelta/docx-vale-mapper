@@ -7,6 +7,8 @@ from validators.abbreviationvalidator import ParagraphRecord, make_finding
 
 
 WORD_PATTERN = re.compile(r"[A-Za-z]+(?:-[A-Za-z]+)*")
+UNIT_ABBREVIATIONS = {"µg", "ug", "mg", "g", "kg", "ng", "pg", "ml", "l", "dl", "mm", "cm", "m", "km", "min", "h", "s"}
+
 MINOR_WORDS = {
     "a", "an", "the", "and", "as", "at", "by", "but", "for",
     "in", "nor", "of", "on", "or", "per", "so", "to", "up",
@@ -44,6 +46,8 @@ def validate_heading_paragraph(
 
     alpha_text = "".join(match.group(0) for match in words)
     if alpha_text.isupper():
+        if paragraph.heading_level == 1:
+            return []
         if not (
             format_state.get("all_caps", False)
             or format_state.get("small_caps", False)
@@ -76,7 +80,11 @@ def validate_heading_paragraph(
                         paragraph,
                     )
                 )
-            elif not should_be_minor and piece[0].islower():
+            elif (
+                not should_be_minor
+                and normalized not in UNIT_ABBREVIATIONS
+                and piece[0].islower()
+            ):
                 findings.append(
                     make_heading_finding(
                         "Clinical.HeadingTitleCase",

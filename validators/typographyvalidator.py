@@ -198,18 +198,21 @@ def validate_unit_nonbreaking_spaces(
     findings: list[dict] = []
 
     for match in UNIT_NONBREAKING_SPACE_PATTERN.finditer(raw_text):
-        findings.append(
-            make_finding(
-                check="Clinical.UnitNonbreakingSpace",
-                severity="warning",
-                message=(
-                    "Style guide units: Use a nonbreaking space between a "
-                    "numeric value and its unit in body text."
-                ),
-                match=match.group(0),
-                paragraph=paragraph,
-            )
+        finding = make_finding(
+            check="Clinical.UnitNonbreakingSpace",
+            severity="suggestion",
+            message=(
+                "Style guide units: Use a nonbreaking space between a "
+                "numeric value and its unit in body text."
+            ),
+            match=match.group(0),
+            paragraph=paragraph,
         )
+        finding["Action"] = {
+            "Name": "replace",
+            "Params": [match.group(0).replace(" ", "\u00a0", 1)],
+        }
+        findings.append(finding)
 
     return findings
 
