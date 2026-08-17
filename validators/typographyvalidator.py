@@ -190,9 +190,12 @@ UNIT_NONBREAKING_SPACE_PATTERN = re.compile(
 def validate_unit_nonbreaking_spaces(
     paragraph: ParagraphRecord,
     raw_text: str,
+    excluded_style_names: set[str] | None = None,
 ) -> list[dict]:
     """Require nonbreaking spaces between numeric values and units in body text."""
     if paragraph.content_zone != "body_narrative":
+        return []
+    if paragraph.style_name.casefold() in (excluded_style_names or set()):
         return []
 
     findings: list[dict] = []

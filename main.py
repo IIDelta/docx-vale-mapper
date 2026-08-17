@@ -38,6 +38,9 @@ from validators.scientificterms import (
     load_scientific_terms,
     validate_scientific_terms,
 )
+from validators.unitstyles import (
+    load_unit_style_exemptions,
+)
 from validators.typographyvalidator import (
     validate_unit_nonbreaking_spaces,
     validate_typography_paragraph,
@@ -146,6 +149,10 @@ SCIENTIFIC_TERMS_PATH = (
 
 HEADING_TERMS_PATH = (
     PROJECT_ROOT / "config" / "headingterms.json"
+)
+
+UNIT_STYLES_PATH = (
+    PROJECT_ROOT / "config" / "unitstyles.json"
 )
 
 
@@ -689,6 +696,7 @@ def add_typography_findings(
         SCIENTIFIC_TERMS_PATH
     )
     heading_terms = load_heading_terms(HEADING_TERMS_PATH)
+    unit_style_exemptions = load_unit_style_exemptions(UNIT_STYLES_PATH)
     record_by_index = {
         record.index: record
         for record in paragraph_records
@@ -760,6 +768,7 @@ def add_typography_findings(
             validate_unit_nonbreaking_spaces(
                 paragraph=record,
                 raw_text=raw_text,
+                excluded_style_names=unit_style_exemptions,
             )
         )
         findings.extend(
