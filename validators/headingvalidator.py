@@ -35,10 +35,12 @@ def validate_heading_paragraph(
     paragraph: ParagraphRecord,
     text: str,
     format_state: dict[str, bool],
+    heading_terms: dict[str, set[str]] | None = None,
 ) -> list[dict]:
     """Review heading capitalization while respecting Word caps formatting."""
     if not paragraph.is_heading:
         return []
+    heading_terms = heading_terms or {"acronym_exemptions": set(), "title_case_exemptions": set()}
 
     words = list(WORD_PATTERN.finditer(text))
     if not words:
@@ -46,6 +48,8 @@ def validate_heading_paragraph(
 
     alpha_text = "".join(match.group(0) for match in words)
     if alpha_text.isupper():
+        if text.strip().casefold() in heading_terms["acronym_exemptions"]:
+            return []
         if paragraph.heading_level == 1:
             return []
         if not (
@@ -80,6 +84,10 @@ def validate_heading_paragraph(
                         paragraph,
                     )
                 )
+            elif (
+                normalized in heading_terms["title_case_exemptions"]
+            ):
+                continue
             elif (
                 not should_be_minor
                 and normalized not in UNIT_ABBREVIATIONS

@@ -35,6 +35,22 @@ def serialize_finding(finding: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
+def enrich_finding(finding: dict[str, Any], record) -> dict[str, Any]:
+    result = serialize_finding(finding)
+    if record is not None:
+        result["Context"] = {
+            "content_zone": record.content_zone,
+            "section_context": record.section_context,
+            "style_name": record.style_name,
+            "heading_level": record.heading_level,
+            "is_in_table": record.is_in_table,
+            "list_marker": record.list_marker,
+            "has_protected_field": record.has_protected_field,
+            "paragraph_text": record.text,
+        }
+    return result
+
+
 def write_audit_findings_report(
     output_path: Path,
     source_path: Path,
@@ -42,9 +58,11 @@ def write_audit_findings_report(
     audit_mode: str,
     findings: list[dict[str, Any]],
     suppressed_findings: Counter,
+    paragraph_records=(),
 ) -> Path:
     """Write all final findings for report-only and comment-enabled audits."""
     report_path = output_path.with_suffix(".audit_findings.json")
+    record_by_line = {record.line: record for record in paragraph_records}
     payload = {
         "report_version": "1.0",
         "source_document": str(source_path.resolve()),
@@ -58,7 +76,7 @@ def write_audit_findings_report(
             sorted(Counter(item.get("Severity", "") for item in findings).items())
         ),
         "suppressed_rule_counts": dict(sorted(suppressed_findings.items())),
-        "findings": [serialize_finding(item) for item in findings],
+        "findings": [enrich_finding(item, record_by_line.get(item.get("Line"))) for item in findings],
     }
     with report_path.open("w", encoding="utf-8") as output_file:
         json.dump(payload, output_file, indent=2, ensure_ascii=False)

@@ -42,6 +42,9 @@ from validators.typographyvalidator import (
     validate_unit_nonbreaking_spaces,
     validate_typography_paragraph,
 )
+from validators.headingterms import (
+    load_heading_terms,
+)
 from validators.headingvalidator import (
     validate_heading_paragraph,
 )
@@ -139,6 +142,10 @@ ABBREVIATION_DATABASE_PATH = (
 
 SCIENTIFIC_TERMS_PATH = (
     PROJECT_ROOT / "config" / "scientificterms.json"
+)
+
+HEADING_TERMS_PATH = (
+    PROJECT_ROOT / "config" / "headingterms.json"
 )
 
 
@@ -681,6 +688,7 @@ def add_typography_findings(
     scientific_terms = load_scientific_terms(
         SCIENTIFIC_TERMS_PATH
     )
+    heading_terms = load_heading_terms(HEADING_TERMS_PATH)
     record_by_index = {
         record.index: record
         for record in paragraph_records
@@ -745,6 +753,7 @@ def add_typography_findings(
                 paragraph=record,
                 text=offset_preserving_text,
                 format_state=get_format(0, len(offset_preserving_text)),
+                heading_terms=heading_terms,
             )
         )
         findings.extend(
@@ -2151,6 +2160,7 @@ def run_scan_thread(
             audit_mode=audit_mode,
             findings=errors,
             suppressed_findings=suppressed_findings,
+            paragraph_records=paragraph_records,
         )
         print(
             f"Audit findings report written: {findings_report_path}"
