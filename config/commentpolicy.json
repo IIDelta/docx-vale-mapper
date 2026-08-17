@@ -1,0 +1,33 @@
+{
+  "profile_name": "Operational Audit",
+  "aggregation_threshold": 5,
+  "max_total_comments": 50,
+  "max_comments_per_rule": 5,
+  "auto_fix_rules": [
+    "Clinical.UnitNonbreakingSpace",
+    "Clinical.MathOperatorSpacing",
+    "Clinical.DottedAbbreviations",
+    "Clinical.LabelCapitalization"
+  ],
+  "comment_rules": [
+    "Clinical.EndOfTrial",
+    "Clinical.TrialIntervention",
+    "Clinical.AbbreviationUndefinedAtFirstUse",
+    "Clinical.AbbreviationMissingFromList",
+    "Clinical.PreferredWordChoices"
+  ],
+  "report_only_rules": [
+    "Clinical.ForwardSlashReview",
+    "Clinical.PlainLanguageAbbreviations",
+    "Clinical.LeanPhrases",
+    "Clinical.Redundancy",
+    "Clinical.AppendixBReview",
+    "Clinical.AppendixCReview",
+    "Clinical.AppendixDReview",
+    "Clinical.HeadingTitleCase",
+    "Clinical.SexIdentityReview"
+  ],
+  "disabled_rules": [
+    "Clinical.FigureVisualReview"
+  ]
+}
