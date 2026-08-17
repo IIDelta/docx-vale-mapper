@@ -72,7 +72,7 @@
       "guide_section": "11.0",
       "topic": "References",
       "status": "implemented_advanced",
-      "notes": "Raw external URLs, active hyperlinks, trial aliases, and basic section-reference capitalization are implemented. Citation field protection and EndNote-aware validation are in progress. Citation placement before punctuation is now reviewed."
+      "notes": "Raw external URLs, active hyperlinks, trial aliases, and basic section-reference capitalization are implemented. Citation field protection and EndNote-aware validation are in progress. Citation placement before punctuation is now reviewed. Protected citation, bibliography, and dynamic-reference field paragraphs are context-suppressed while reference-specific rules remain eligible."
     },
     {
       "guide_section": "12.0",
@@ -106,16 +106,6 @@
     }
   ],
   "remaining_backlog": [
-    {
-      "topic": "Citation field protection",
-      "target_status": "implemented_standard",
-      "priority": "high"
-    },
-    {
-      "topic": "EndNote and bibliography field detection",
-      "target_status": "implemented_advanced",
-      "priority": "high"
-    },
     {
       "topic": "Heading capitalization with Word All Caps style awareness",
       "target_status": "implemented_advanced",

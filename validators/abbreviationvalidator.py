@@ -31,6 +31,7 @@ class ParagraphRecord:
     heading_level: int = 0
     section_context: str = ""
     content_zone: str = "body_narrative"
+    has_protected_field: bool = False
 
 
 @dataclass(frozen=True)

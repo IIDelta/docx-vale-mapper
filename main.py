@@ -464,6 +464,7 @@ def build_paragraph_records(doc):
 
     current_line = 1
     total_paragraphs = doc.Paragraphs.Count
+    protected_ranges = protected_field_ranges(doc)
 
     title_page_active = True
 
@@ -601,6 +602,11 @@ def build_paragraph_records(doc):
             )
             continue
 
+        has_protected_field = ranges_overlap(
+            paragraph_start,
+            paragraph_end,
+            protected_ranges,
+        )
         record = ParagraphRecord(
             index=index,
             line=current_line,
@@ -614,6 +620,7 @@ def build_paragraph_records(doc):
             heading_level=heading_level,
             section_context=section_context,
             content_zone=content_zone,
+            has_protected_field=has_protected_field,
         )
 
         paragraph_records.append(record)

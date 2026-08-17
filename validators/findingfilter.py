@@ -49,6 +49,14 @@ BODY_NARRATIVE_RULES = {
 }
 
 
+FIELD_ELIGIBLE_RULES = {
+    "Clinical.RawExternalURL",
+    "Clinical.ActiveExternalLink",
+    "Clinical.CitationPlacement",
+    "Clinical.ReferenceLabels",
+    "Clinical.TrialAliasFormat",
+}
+
 TABLE_DATA_RULES = {
     "Clinical.TableHeadingSentenceCase",
     "Clinical.TableZeroFormat",
@@ -110,6 +118,14 @@ def filter_findings_by_context(
             retained.append(finding)
             continue
 
+        if (
+            record.has_protected_field
+            and rule_id not in FIELD_ELIGIBLE_RULES
+        ):
+            suppressed[
+                f"{rule_id}:protected_word_field"
+            ] += 1
+            continue
         if (
             rule_id in BODY_NARRATIVE_RULES
             and record.content_zone
