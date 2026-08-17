@@ -34,6 +34,10 @@ from abbreviations.reportpaths import (
 from validators.listvalidator import (
     validate_list_structure,
 )
+from validators.scientificterms import (
+    load_scientific_terms,
+    validate_scientific_terms,
+)
 from validators.typographyvalidator import (
     validate_unit_nonbreaking_spaces,
     validate_typography_paragraph,
@@ -131,6 +135,10 @@ ABBREVIATION_POLICY_PATH = (
 
 ABBREVIATION_DATABASE_PATH = (
     PROJECT_ROOT / "data" / "abbreviations.sqlite"
+)
+
+SCIENTIFIC_TERMS_PATH = (
+    PROJECT_ROOT / "config" / "scientificterms.json"
 )
 
 
@@ -670,6 +678,9 @@ def add_typography_findings(
 
     findings: list[dict] = []
 
+    scientific_terms = load_scientific_terms(
+        SCIENTIFIC_TERMS_PATH
+    )
     record_by_index = {
         record.index: record
         for record in paragraph_records
@@ -740,6 +751,14 @@ def add_typography_findings(
             validate_unit_nonbreaking_spaces(
                 paragraph=record,
                 raw_text=raw_text,
+            )
+        )
+        findings.extend(
+            validate_scientific_terms(
+                paragraph=record,
+                text=offset_preserving_text,
+                get_format=get_format,
+                registry=scientific_terms,
             )
         )
 
