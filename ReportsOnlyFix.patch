@@ -1,0 +1,19 @@
+diff --git a/runtime/auditmanifest.py b/runtime/auditmanifest.py
+index 2222222..3333333 100644
+--- a/runtime/auditmanifest.py
++++ b/runtime/auditmanifest.py
+@@ -25,12 +25,12 @@ def build_audit_manifest(
+     source_path: Path,
+     output_path: Path,
+     audit_profile: str,
+-    audit_mode: str,
+-    output_document_created: bool,
+     vale_version: str,
+     final_findings: list[dict],
+     suppressed_findings,
+     comment_metrics: dict,
+     content_zone_counts: dict,
+     preflight_result: dict,
++    audit_mode: str = "word_comments",
++    output_document_created: bool = True,
+ ) -> dict[str, Any]:

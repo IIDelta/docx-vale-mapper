@@ -34,6 +34,8 @@ def build_audit_manifest(
     comment_metrics: dict,
     content_zone_counts: dict,
     preflight_result: dict,
+    audit_mode: str = "word_comments",
+    output_document_created: bool = True,
 ) -> dict[str, Any]:
     """
     Build a complete audit-run manifest.
@@ -45,6 +47,7 @@ def build_audit_manifest(
     return {
         "tool_version": "0.2.0",
         "audit_profile": audit_profile,
+        "audit_mode": audit_mode,
         "audit_started_utc": datetime.now(
             timezone.utc
         ).isoformat(),
@@ -54,6 +57,7 @@ def build_audit_manifest(
         "output_document": str(
             output_path.resolve()
         ),
+        "output_document_created": output_document_created,
         "source_sha256": sha256_file(source_path),
         "vale_version": vale_version,
         "final_finding_count": len(

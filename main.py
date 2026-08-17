@@ -94,6 +94,15 @@ from validators.auditprofile import (
 from validators.commentverification import (
     vale_anchor_is_verified,
 )
+from runtime.auditmode import (
+    REPORTS_ONLY,
+    WORD_COMMENTS,
+    comments_are_enabled,
+    normalize_audit_mode,
+)
+from runtime.auditreport import (
+    write_audit_findings_report,
+)
 from runtime.auditmanifest import (
     build_audit_manifest,
     write_audit_manifest,
@@ -1824,6 +1833,7 @@ def run_scan_thread(
     progress_var,
     start_btn,
     audit_profile,
+    audit_mode,
 ):
     """
     Run the Word audit in a background thread.
@@ -1833,6 +1843,7 @@ def run_scan_thread(
     """
 
     pythoncom.CoInitialize()
+    audit_mode = normalize_audit_mode(audit_mode)
 
     word = None
     doc = None
@@ -2082,6 +2093,78 @@ def run_scan_thread(
                 "Duplicate findings removed before "
                 f"range resolution: {deduplicated_count}"
             )
+
+        findings_report_path = write_audit_findings_report(
+            output_path=audited_output_path,
+            source_path=source_path,
+            audit_profile=audit_profile,
+            audit_mode=audit_mode,
+            findings=errors,
+            suppressed_findings=suppressed_findings,
+        )
+        print(
+            f"Audit findings report written: {findings_report_path}"
+        )
+
+        if not comments_are_enabled(audit_mode):
+            comment_metrics["skipped_comment_reasons"][
+                "comment_insertion_disabled"
+            ] += len(errors)
+
+            audit_stage = "Writing reports-only audit summary"
+            write_audit_summary(
+                output_path=audited_output_path,
+                audit_profile=audit_profile,
+                vale_findings=vale_errors,
+                structural_findings=structural_findings,
+                final_findings=errors,
+                suppressed_findings=suppressed_findings,
+                comment_metrics=comment_metrics,
+                paragraph_records=paragraph_records,
+            )
+
+            vale_version = ""
+            for check in preflight_result["checks"]:
+                if check["name"] == "Vale CLI":
+                    vale_version = check["details"]
+                    break
+            content_zone_counts = Counter(
+                record.content_zone
+                for record in paragraph_records
+            )
+            manifest = build_audit_manifest(
+                source_path=source_path,
+                output_path=audited_output_path,
+                audit_profile=audit_profile,
+                audit_mode=audit_mode,
+                output_document_created=False,
+                vale_version=vale_version,
+                final_findings=errors,
+                suppressed_findings=suppressed_findings,
+                comment_metrics=comment_metrics,
+                content_zone_counts=dict(content_zone_counts),
+                preflight_result=preflight_result,
+            )
+            manifest_path = write_audit_manifest(
+                manifest=manifest,
+                output_path=audited_output_path,
+            )
+            print(f"Audit manifest written: {manifest_path}")
+
+            status_var.set(
+                "Complete: JSON reports written; Word comments disabled."
+            )
+            progress_var.set(100)
+            messagebox.showinfo(
+                "Audit Complete",
+                (
+                    "Audit complete. No Word comments or audited DOCX "
+                    "were created."
+                    f"Findings report:{findings_report_path}"
+                    f"Findings: {len(errors)}"
+                ),
+            )
+            return
 
         # ------------------------------------------------------------
         # Phase 9: Resolve ranges and insert comments
@@ -2488,6 +2571,8 @@ def run_scan_thread(
             source_path=source_path,
             output_path=audited_output_path,
             audit_profile=audit_profile,
+            audit_mode=audit_mode,
+            output_document_created=True,
             vale_version=vale_version,
             final_findings=errors,
             suppressed_findings=suppressed_findings,
@@ -2611,6 +2696,7 @@ def start_process(
     progress_var,
     start_btn,
     audit_profile_var,
+    insert_comments_var,
 ):
     """
     Validate user input and launch the audit worker.
@@ -2682,7 +2768,7 @@ def start_process(
         )
         return
 
-    if output_path.exists():
+    if insert_comments_var.get() and output_path.exists():
         overwrite_confirmed = messagebox.askyesno(
             "Overwrite Existing Output?",
             (
@@ -2703,6 +2789,11 @@ def start_process(
     audit_profile = normalize_audit_profile(
         audit_profile_var.get()
     )
+    audit_mode = (
+        WORD_COMMENTS
+        if insert_comments_var.get()
+        else REPORTS_ONLY
+    )
 
     start_btn.config(state=tk.DISABLED)
 
@@ -2721,6 +2812,7 @@ def start_process(
             progress_var,
             start_btn,
             audit_profile,
+            audit_mode,
         ),
         daemon=True,
     )
@@ -2785,7 +2877,7 @@ def build_gui():
     root = tk.Tk()
 
     root.title("Medical Writer - Vale Auditor")
-    root.geometry("650x410")
+    root.geometry("650x470")
     root.resizable(False, False)
 
     frame = ttk.Frame(
@@ -2847,7 +2939,7 @@ def build_gui():
     # ------------------------------------------------------------
     ttk.Label(
         frame,
-        text="Output Audited File:",
+        text="Report Base / Audited DOCX:",
     ).grid(
         row=1,
         column=0,
@@ -2930,6 +3022,29 @@ def build_gui():
         padx=10,
         pady=(0, 8),
     )
+    insert_comments_var = tk.BooleanVar(value=False)
+    ttk.Checkbutton(
+        frame,
+        text="Create audited DOCX with Word comments (slow)",
+        variable=insert_comments_var,
+    ).grid(
+        row=4,
+        column=1,
+        sticky=tk.W,
+        padx=10,
+        pady=(0, 5),
+    )
+    ttk.Label(
+        frame,
+        text="Unchecked: writes JSON reports only; does not save a DOCX.",
+        wraplength=440,
+    ).grid(
+        row=5,
+        column=1,
+        sticky=tk.W,
+        padx=10,
+        pady=(0, 8),
+    )
 
     # ------------------------------------------------------------
     # Status and progress
@@ -2941,7 +3056,7 @@ def build_gui():
         frame,
         textvariable=status_var,
     ).grid(
-        row=4,
+        row=6,
         column=0,
         columnspan=3,
         sticky=tk.W,
@@ -2957,7 +3072,7 @@ def build_gui():
     )
 
     progress_bar.grid(
-        row=5,
+        row=7,
         column=0,
         columnspan=3,
         sticky=(tk.W, tk.E),
@@ -2977,11 +3092,12 @@ def build_gui():
             progress_var,
             start_btn,
             audit_profile_var,
+            insert_comments_var,
         ),
     )
 
     start_btn.grid(
-        row=6,
+        row=8,
         column=0,
         columnspan=3,
         pady=(20, 10),
@@ -3000,7 +3116,7 @@ def build_gui():
     )
 
     review_btn.grid(
-        row=7,
+        row=9,
         column=0,
         columnspan=3,
         pady=(0, 10),
