@@ -1,0 +1,115 @@
+{
+  "report_version": "1.0",
+  "source_document": "C:\\Users\\xjc0417\\Documents\\docx-vale-mapper\\tests\\fixtures\\reportsonlyfixture.docx",
+  "audit_profile": "standard",
+  "audit_mode": "reports_only",
+  "finding_count": 7,
+  "rule_counts": {
+    "Clinical.CitationPlacement": 1,
+    "Clinical.HeadingMinorWordCase": 2,
+    "Clinical.NumericRatioFormat": 1,
+    "Clinical.Participant": 1,
+    "Clinical.UnitNonbreakingSpace": 2
+  },
+  "severity_counts": {
+    "warning": 7
+  },
+  "suppressed_rule_counts": {},
+  "findings": [
+    {
+      "Check": "Clinical.Participant",
+      "Severity": "warning",
+      "Message": "Style guide terminology: Use 'Participants were randomized' instead of 'Patients were randomized' for an enrolled clinical-trial individual.",
+      "Match": "Patients were randomized",
+      "Line": 3,
+      "Span": [
+        1,
+        24
+      ],
+      "Action": {
+        "Name": "replace",
+        "Params": [
+          "Participants were randomized"
+        ]
+      }
+    },
+    {
+      "Check": "Clinical.NumericRatioFormat",
+      "Severity": "warning",
+      "Message": "Style guide ratios: Use a colon, not a forward slash, for a numeric ratio.",
+      "Match": "randomized 1/1",
+      "Line": 3,
+      "Span": [
+        15,
+        28
+      ],
+      "Action": {
+        "Name": "",
+        "Params": null
+      }
+    },
+    {
+      "Check": "Clinical.CitationPlacement",
+      "Severity": "warning",
+      "Message": "Style guide references: Place an in-text citation before the terminal punctuation of the sentence it supports.",
+      "Match": ". (Smith et al, 2025)",
+      "Line": 5,
+      "Span": [
+        35,
+        55
+      ],
+      "Action": {
+        "Name": "",
+        "Params": null
+      }
+    },
+    {
+      "Check": "Clinical.HeadingMinorWordCase",
+      "Severity": "warning",
+      "Message": "Style guide headings: Lowercase articles, coordinating conjunctions, and short prepositions unless first or last.",
+      "Match": "For",
+      "Line": 1,
+      "ParagraphIndex": 1,
+      "Action": {
+        "Name": "",
+        "Params": null
+      }
+    },
+    {
+      "Check": "Clinical.HeadingMinorWordCase",
+      "Severity": "warning",
+      "Message": "Style guide headings: Lowercase articles, coordinating conjunctions, and short prepositions unless first or last.",
+      "Match": "The",
+      "Line": 1,
+      "ParagraphIndex": 1,
+      "Action": {
+        "Name": "",
+        "Params": null
+      }
+    },
+    {
+      "Check": "Clinical.UnitNonbreakingSpace",
+      "Severity": "warning",
+      "Message": "Style guide units: Use a nonbreaking space between a numeric value and its unit in body text.",
+      "Match": "5 mg",
+      "Line": 3,
+      "ParagraphIndex": 2,
+      "Action": {
+        "Name": "",
+        "Params": null
+      }
+    },
+    {
+      "Check": "Clinical.UnitNonbreakingSpace",
+      "Severity": "warning",
+      "Message": "Style guide units: Use a nonbreaking space between a numeric value and its unit in body text.",
+      "Match": "3 days",
+      "Line": 3,
+      "ParagraphIndex": 2,
+      "Action": {
+        "Name": "",
+        "Params": null
+      }
+    }
+  ]
+}
