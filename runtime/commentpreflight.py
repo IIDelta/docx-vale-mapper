@@ -1,4 +1,5 @@
 from __future__ import annotations
+from typing import Any
 
 import json
 from pathlib import Path
@@ -31,6 +32,7 @@ def run_comment_preflight(
     plan_path: Path,
     manifest_path: Path,
     output_base: Path,
+    doc: Any = None,
 ) -> Path:
     plan = json.loads(
         plan_path.read_text(encoding="utf-8")
@@ -65,111 +67,88 @@ def run_comment_preflight(
         import pythoncom
         import win32com.client
 
-        pythoncom.CoInitialize()
-
-        word = None
+        own_doc = False
         document = None
+        if doc is None:
+            pythoncom.CoInitialize()
 
-        try:
-            word = win32com.client.DispatchEx(
-                "Word.Application"
-            )
+            word = None
 
-            word.Visible = False
+            try:
+                word = win32com.client.DispatchEx(
+                    "Word.Application"
+                )
 
-            document = word.Documents.Open(
-                str(source_path.resolve()),
-                ReadOnly=True,
-            )
+                word.Visible = False
 
-            protected_ranges = protected_field_ranges(
-                document
-            )
+                document = word.Documents.Open(
+                    str(source_path.resolve()),
+                    ReadOnly=True,
+                )
+                own_doc = True
+            except Exception:
+                pass
+        else:
+            document = doc
 
-            for entry in plan.get("comment_plan", []):
-                finding = entry["finding"]
+        if document is not None:
+            try:
+                protected_ranges = protected_field_ranges(document)
 
-                try:
-                    paragraph_index = int(
-                        finding["ParagraphIndex"]
-                    )
+                for entry in plan.get("comment_plan", []):
+                    finding = entry["finding"]
 
-                    paragraph = document.Paragraphs.Item(
-                        paragraph_index
-                    )
+                    try:
+                        paragraph_index = int(finding["ParagraphIndex"])
+                        paragraph = document.Paragraphs.Item(paragraph_index)
+                        raw_text = paragraph.Range.Text
+                        expected_text = finding.get("Context", {}).get("paragraph_text", "")
 
-                    raw_text = paragraph.Range.Text
+                        if clean_text(raw_text) != expected_text:
+                            raise ValueError("paragraph_text_mismatch")
 
-                    expected_text = finding.get(
-                        "Context",
-                        {},
-                    ).get(
-                        "paragraph_text",
-                        "",
-                    )
+                        match_text = finding.get("Match", "")
 
-                    if clean_text(raw_text) != expected_text:
-                        raise ValueError(
-                            "paragraph_text_mismatch"
+                        offset = resolve_comment_offset(
+                            raw_text,
+                            {"match": match_text, "span": finding.get("Span")}
                         )
 
-                    match_text = finding.get("Match", "")
+                        if offset is None:
+                            raise ValueError("match_occurrence_not_found")
 
-                    # Create a mock 'item' expected by resolve_comment_offset
-                    offset = resolve_comment_offset(
-                        raw_text,
-                        {
-                            "match": match_text,
-                            "span": finding.get("Span")
-                        }
-                    )
+                        start = paragraph.Range.Start + offset
+                        end = start + len(match_text)
 
-                    if offset is None:
-                        raise ValueError(
-                            "match_occurrence_not_found"
+                        if ranges_overlap(start, end, protected_ranges):
+                            raise ValueError("protected_word_field")
+
+                        extracted_text = raw_text[offset : offset + len(match_text)]
+                        if extracted_text.replace('\xa0', ' ').replace('\r', ' ').replace('\x07', ' ').replace('\x0b', ' ').replace('\n', ' ') != match_text:
+                            raise ValueError(f"text_mismatch_at_offset: expected {repr(match_text)}, got {repr(extracted_text)}")
+
+                        result["verified_comments"].append(
+                            {
+                                **entry,
+                                "verified_range_start": start,
+                                "verified_range_end": end,
+                            }
                         )
 
-                    start = paragraph.Range.Start + offset
-                    end = start + len(match_text)
-
-                    if ranges_overlap(
-                        start,
-                        end,
-                        protected_ranges,
-                    ):
-                        raise ValueError(
-                            "protected_word_field"
+                    except Exception as error:
+                        result["unverified_comments"].append(
+                            {
+                                "plan": entry,
+                                "reason": str(error),
+                            }
                         )
-
-                    # Verify text mismatch on actual raw string 
-                    extracted_text = raw_text[offset : offset + len(match_text)]
-                    if extracted_text.replace('\xa0', ' ').replace('\r', ' ').replace('\x07', ' ').replace('\x0b', ' ').replace('\n', ' ') != match_text:
-                        raise ValueError(f"text_mismatch_at_offset: expected {repr(match_text)}, got {repr(extracted_text)}")
-
-                    result["verified_comments"].append(
-                        {
-                            **entry,
-                            "verified_range_start": start,
-                            "verified_range_end": end,
-                        }
-                    )
-
-                except Exception as error:
-                    result["unverified_comments"].append(
-                        {
-                            "plan": entry,
-                            "reason": str(error),
-                        }
-                    )
-
-        finally:
-            if document is not None:
-                document.Close(SaveChanges=False)
-
-            if word is not None:
-                word.Quit()
-
-            pythoncom.CoUninitialize()
+            finally:
+                if own_doc:
+                    if document is not None:
+                        document.Close(SaveChanges=False)
+                    if word is not None:
+                        word.Quit()
+                    pythoncom.CoUninitialize()
 
     result["verified_count"] = len(
         result["verified_comments"]

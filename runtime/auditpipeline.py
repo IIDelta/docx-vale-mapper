@@ -246,21 +246,8 @@ def run_scan_thread(
         )
 
         # ------------------------------------------------------------
-        # Release Word COM locks early
+        # Retaining Word COM locks for later phases
         # ------------------------------------------------------------
-        if doc is not None:
-            try:
-                doc.Close(SaveChanges=False)
-            except Exception:
-                pass
-            doc = None
-            
-        if word is not None:
-            try:
-                word.Quit()
-            except Exception:
-                pass
-            word = None
 
         # ------------------------------------------------------------
         # Phase 6: Candidate report
@@ -490,6 +477,7 @@ def run_scan_thread(
             plan_path=plan_path,
             manifest_path=manifest_path,
             output_base=audited_output_path,
+            doc=doc,
         )
         print(f"Auto-fix preflight written: {autofix_preflight_path}")
 
@@ -498,8 +486,16 @@ def run_scan_thread(
             plan_path=plan_path,
             manifest_path=manifest_path,
             output_base=audited_output_path,
+            doc=doc,
         )
         print(f"Comment preflight written: {comment_preflight_path}")
+
+        if doc is not None:
+            try:
+                doc.Close(SaveChanges=False)
+            except Exception:
+                pass
+            doc = None
 
         audit_stage = "Executing Operational Audit"
         progress_var.set(80)
@@ -511,6 +507,7 @@ def run_scan_thread(
             autofix_preflight_path=autofix_preflight_path,
             comment_preflight_path=comment_preflight_path,
             output_base=audited_output_path,
+            word_app=word,
         )
 
         status_var.set("Complete! Document is ready.")
