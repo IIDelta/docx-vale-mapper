@@ -10,7 +10,7 @@ from validators.tablevalidator import (
     validate_table_cells,
 )
 
-from main import is_schedule_table
+from word.structuralchecks import is_schedule_table
 
 
 def paragraph(
