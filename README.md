@@ -64,3 +64,12 @@ The application currently requires:
 ```text
 python-docx
 pywin32
+```
+
+---
+
+## Documentation & Architecture
+
+For more details on the repository layout, system architecture, and development guidelines, please refer to:
+- **[`docs/architecture.md`](docs/architecture.md)**: A high-level overview of the application's core components and data flow.
+- **[`AGENTS.md`](AGENTS.md)**: Onboarding instructions and task backlogs for AI agents navigating this repository.

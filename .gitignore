@@ -22,9 +22,28 @@ reports/*.md
 *.outputverification.json
 *.listgeneration.json
 
+<<<<<<< HEAD
 *_AUDITED.docx
 *_AUTOFIXPILOT.docx
 *_AUTOFIXVERIFY.docx
 
 # Temporary local installers
 ApplyP*.py
+=======
+# IDE and Editor
+.vscode/
+.idea/
+
+# OS Metadata
+.DS_Store
+Thumbs.db
+
+# Testing and Logs
+*.log
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Vale
+.vale/
+>>>>>>> 913a656 (architectural updates)
