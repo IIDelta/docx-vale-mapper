@@ -64,22 +64,15 @@ def run_comment_preflight(
             )
 
     else:
-        import pythoncom
-        import win32com.client
+        from word.lifecycle import WordAppSession
 
         own_doc = False
         document = None
+        word_session = None
         if doc is None:
-            pythoncom.CoInitialize()
-
-            word = None
-
             try:
-                word = win32com.client.DispatchEx(
-                    "Word.Application"
-                )
-
-                word.Visible = False
+                word_session = WordAppSession(visible=False, screen_updating=True)
+                word = word_session.__enter__()
 
                 document = word.Documents.Open(
                     str(source_path.resolve()),
@@ -145,10 +138,12 @@ def run_comment_preflight(
             finally:
                 if own_doc:
                     if document is not None:
-                        document.Close(SaveChanges=False)
-                    if word is not None:
-                        word.Quit()
-                    pythoncom.CoUninitialize()
+                        try:
+                            document.Close(SaveChanges=False)
+                        except Exception:
+                            pass
+                    if word_session is not None:
+                        word_session.__exit__(None, None, None)
 
     result["verified_count"] = len(
         result["verified_comments"]

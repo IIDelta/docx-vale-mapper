@@ -42,13 +42,14 @@ def run_preflight(source_path: Path, plan_path: Path, manifest_path: Path, outpu
     if not result["source_sha256_matches"]:
         for item in plan.get("auto_fix_plan",[]): result["unverified_auto_fixes"].append({"plan":item,"reason":"source_sha256_mismatch"})
     else:
-        import pythoncom, win32com.client
+        from word.lifecycle import WordAppSession
         own_doc = False
+        word_session = None
         if doc is None:
-            pythoncom.CoInitialize(); word=None
             try:
-                word=win32com.client.DispatchEx("Word.Application"); word.Visible=False
-                doc=word.Documents.Open(str(source_path.resolve()), ReadOnly=True)
+                word_session = WordAppSession(visible=False, screen_updating=True)
+                word = word_session.__enter__()
+                doc = word.Documents.Open(str(source_path.resolve()), ReadOnly=True)
                 own_doc = True
             except Exception:
                 pass
@@ -76,9 +77,13 @@ def run_preflight(source_path: Path, plan_path: Path, manifest_path: Path, outpu
                         result["unverified_auto_fixes"].append({"plan":item,"reason":str(error)})
             finally:
                 if own_doc:
-                    if doc is not None: doc.Close(SaveChanges=False)
-                    if word is not None: word.Quit()
-                    pythoncom.CoUninitialize()
+                    if doc is not None:
+                        try:
+                            doc.Close(SaveChanges=False)
+                        except Exception:
+                            pass
+                    if word_session is not None:
+                        word_session.__exit__(None, None, None)
     result["verified_count"]=len(result["verified_auto_fixes"])
     result["unverified_count"]=len(result["unverified_auto_fixes"])
     path=output_base.with_suffix(".autofixpreflight.json")

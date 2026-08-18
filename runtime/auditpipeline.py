@@ -123,7 +123,7 @@ def run_scan_thread(
     prevents duplicate comments on the same resolved Word range.
     """
 
-    pythoncom.CoInitialize()
+    # pythoncom.CoInitialize() handled by WordAppSession
     audit_mode = normalize_audit_mode(audit_mode)
 
     word = None
@@ -204,11 +204,9 @@ def run_scan_thread(
 
         progress_var.set(5)
 
-        word = win32com.client.Dispatch(
-            "Word.Application"
-        )
-
-        word.Visible = False
+        from word.lifecycle import WordAppSession
+        word_session = WordAppSession(visible=False, screen_updating=True)
+        word = word_session.__enter__()
 
         # ------------------------------------------------------------
         # Phase 4: Open and extract document
@@ -544,25 +542,12 @@ def run_scan_thread(
     finally:
         if doc is not None:
             try:
-                doc.Close(
-                    SaveChanges=False
-                )
+                doc.Close(SaveChanges=False)
             except Exception as cleanup_error:
-                print(
-                    "Word document cleanup warning: "
-                    f"{cleanup_error}"
-                )
+                print(f"Word document cleanup warning: {cleanup_error}")
 
-        if word is not None:
-            try:
-                word.Quit()
-            except Exception as cleanup_error:
-                print(
-                    "Word application cleanup warning: "
-                    f"{cleanup_error}"
-                )
-
-        pythoncom.CoUninitialize()
+        if 'word_session' in locals():
+            word_session.__exit__(None, None, None)
 
         try:
             start_btn.config(state=tk.NORMAL)

@@ -267,26 +267,25 @@ def execute_operational_audit(
     # ---------------------------
     validation_result = "passed"
     mva_comment_count = 0
-    pythoncom.CoInitialize()
     try:
-        word_val = win32com.client.DispatchEx("Word.Application")
-        word_val.Visible = False
-        doc_val = None
-        try:
-            doc_val = word_val.Documents.Open(str(output_path.resolve()), ReadOnly=True)
-            for c in doc_val.Comments:
-                if c.Author == "MVA" or c.Initial == "MVA":
-                    mva_comment_count += 1
-        except Exception as e:
-            validation_result = f"failed_to_open: {str(e)}"
-        finally:
-            if doc_val is not None:
-                doc_val.Close(SaveChanges=False)
-            word_val.Quit()
+        from word.lifecycle import WordAppSession
+        with WordAppSession(visible=False, screen_updating=True) as word_val:
+            doc_val = None
+            try:
+                doc_val = word_val.Documents.Open(str(output_path.resolve()), ReadOnly=True)
+                for c in doc_val.Comments:
+                    if c.Author == "MVA" or c.Initial == "MVA":
+                        mva_comment_count += 1
+            except Exception as e:
+                validation_result = f"failed_to_open: {str(e)}"
+            finally:
+                if doc_val is not None:
+                    try:
+                        doc_val.Close(SaveChanges=False)
+                    except Exception:
+                        pass
     except Exception as e:
         validation_result = f"failed_to_launch_word: {str(e)}"
-    finally:
-        pythoncom.CoUninitialize()
 
     # ---------------------------
     # F. Execution Artifacts

@@ -5,6 +5,8 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 
+from runtime.schemas import AutoFixPlanEntry, CommentPlanEntry, CommentPlan
+
 
 def load_comment_policy(config_path: Path) -> dict[str, Any]:
     with config_path.open(encoding="utf-8") as input_file:
@@ -81,13 +83,13 @@ def comment_eligible(finding: dict[str, Any]) -> bool:
 def build_comment_plan(
     findings: list[dict[str, Any]],
     policy: dict[str, Any],
-) -> dict[str, Any]:
+) -> CommentPlan:
     buckets: dict[str, list[dict[str, Any]]] = defaultdict(list)
 
     for finding in findings:
         buckets[disposition(finding, policy)].append(finding)
 
-    auto_fix_plan = []
+    auto_fix_plan: list[AutoFixPlanEntry] = []
     occurrence_counts: dict[
         tuple[str, int | None, str],
         int,
@@ -145,7 +147,7 @@ def build_comment_plan(
     for finding in buckets["comment"]:
         grouped[finding.get("Check", "")].append(finding)
 
-    comment_plan = []
+    comment_plan: list[CommentPlanEntry] = []
 
     for rule_id, group in sorted(grouped.items()):
         group = sorted(
@@ -236,7 +238,7 @@ def build_comment_plan(
     }
 
 
-def write_comment_plan(output_base: Path, plan: dict[str, Any]) -> Path:
+def write_comment_plan(output_base: Path, plan: CommentPlan) -> Path:
     path = output_base.with_suffix(".commentplan.json")
     with path.open("w", encoding="utf-8") as output_file:
         json.dump(plan, output_file, indent=2, ensure_ascii=False)
