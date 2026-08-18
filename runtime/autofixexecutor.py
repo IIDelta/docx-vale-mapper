@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import difflib
+from typing import Any
 import json
 import shutil
 from collections import defaultdict
@@ -11,14 +12,15 @@ from validators.fieldprotection import protected_field_ranges, ranges_overlap
 
 
 def replacement_operations(match: str, replacement: str) -> list[tuple[str, int, int, str]]:
-    operations=[]
+    operations: list[tuple[str, int, int, str]] = []
     for tag, start, end, replacement_start, replacement_end in difflib.SequenceMatcher(None, match, replacement).get_opcodes():
-        if tag != "equal": operations.append((tag,start,end,replacement[replacement_start:replacement_end]))
+        if tag != "equal":
+            operations.append((str(tag), start, end, replacement[replacement_start:replacement_end]))
     return operations
 
 
 def select_summary_targets(items: list[dict]) -> dict[str, dict]:
-    targets = {}
+    targets: dict[str, Any] = {}
     for item in items:
         rule = item["rule_id"]
         if rule not in targets or item["verified_range_start"] < targets[rule]["verified_range_start"]:

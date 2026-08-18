@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import typing
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -23,15 +24,17 @@ def load_comment_budget(config_path: Path) -> dict[str, Any]:
         if isinstance(loaded, dict):
             budget.update(loaded)
 
-    budget["max_comments"] = max(0, int(budget["max_comments"]))
+    budget["max_comments"] = max(0, int(str(budget["max_comments"])))
     budget["max_comments_per_rule"] = max(
         0,
-        int(budget["max_comments_per_rule"]),
+        int(str(budget["max_comments_per_rule"])),
     )
-    budget["severity_order"] = [
-        str(value).casefold()
-        for value in budget["severity_order"]
-    ]
+    severity_order = budget.get("severity_order", [])
+    if isinstance(severity_order, list):
+        budget["severity_order"] = [
+            str(value).casefold()
+            for value in severity_order
+        ]
     budget["write_full_review_queue"] = bool(
         budget["write_full_review_queue"]
     )
@@ -62,7 +65,7 @@ def apply_comment_budget(
     )
     selected: list[dict[str, Any]] = []
     deferred: list[dict[str, Any]] = []
-    per_rule = Counter()
+    per_rule: typing.Counter[str] = Counter()
 
     for _, finding in prioritized:
         rule_id = str(finding.get("Check", "Clinical.UnknownRule"))

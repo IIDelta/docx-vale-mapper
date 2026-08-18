@@ -39,7 +39,7 @@ def load_registry_policy(
     If no local database exists yet, return an empty registry policy.
     """
 
-    empty_policy = {
+    empty_policy: dict[str, Any] = {
         "tracked_abbreviations": {},
         "never_expand": [],
         "deprecated_terms": {},
@@ -66,7 +66,7 @@ def load_registry_policy(
     except sqlite3.Error:
         return empty_policy
 
-    registry_policy = {
+    registry_policy: dict[str, Any] = {
         "tracked_abbreviations": {},
         "never_expand": [],
         "deprecated_terms": {},

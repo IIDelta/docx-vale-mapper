@@ -214,7 +214,7 @@ def create_import(
         ),
     )
 
-    return int(cursor.lastrowid)
+    return int(cursor.lastrowid or 0)
 
 
 def insert_candidate(
@@ -249,7 +249,7 @@ def insert_candidate(
         ),
     )
 
-    return int(cursor.lastrowid)
+    return int(cursor.lastrowid or 0)
 
 
 def insert_issue(

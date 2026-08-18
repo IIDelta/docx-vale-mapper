@@ -17,7 +17,7 @@ def verify_execution_artifacts(
     Validates the generated execution JSONs against expected values.
     Returns a dictionary of validation results.
     """
-    result = {
+    result: dict[str, Any] = {
         "source_sha_match": False,
         "output_sha_match": True,
         "autofix_count_match": True,

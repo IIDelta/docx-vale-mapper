@@ -23,7 +23,7 @@ from pathlib import Path
 
 def load_heading_terms(config_path: Path) -> dict[str, set[str]]:
     """Load controlled heading exemptions without inferring terminology."""
-    result = {"acronym_exemptions": set(), "title_case_exemptions": set()}
+    result: dict[str, set[str]] = {"acronym_exemptions": set(), "title_case_exemptions": set()}
     if not config_path.is_file():
         return result
     with config_path.open(encoding="utf-8") as input_file:

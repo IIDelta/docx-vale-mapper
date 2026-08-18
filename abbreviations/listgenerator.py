@@ -316,7 +316,7 @@ def generate_list_document(
         cells[0].text = entry.token
         cells[1].text = entry.definition
 
-    document.save(output_path)
+    document.save(str(output_path))
 
 
 def write_generation_report(

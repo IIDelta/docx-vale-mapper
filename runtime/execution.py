@@ -4,6 +4,7 @@ import json
 import shutil
 import traceback
 from collections import defaultdict
+import typing
 from pathlib import Path
 from typing import Any
 
@@ -12,10 +13,10 @@ from validators.fieldprotection import protected_field_ranges, ranges_overlap
 
 def replacement_operations(match: str, replacement: str) -> list[tuple[str, int, int, str]]:
     import difflib
-    operations = []
+    operations: list[tuple[str, int, int, str]] = []
     for tag, start, end, replacement_start, replacement_end in difflib.SequenceMatcher(None, match, replacement).get_opcodes():
         if tag != "equal":
-            operations.append((tag, start, end, replacement[replacement_start:replacement_end]))
+            operations.append((str(tag), start, end, replacement[replacement_start:replacement_end]))
     return operations
 
 def execute_operational_audit(
@@ -25,6 +26,7 @@ def execute_operational_audit(
     autofix_preflight_path: Path,
     comment_preflight_path: Path,
     output_base: Path,
+    word_app: Any = None,
 ) -> dict[str, Path]:
     
     man = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -59,8 +61,13 @@ def execute_operational_audit(
     import pythoncom
     import win32com.client
 
-    pythoncom.CoInitialize()
-    word = None
+    own_word = False
+    if word_app is None:
+        pythoncom.CoInitialize()
+        word = None
+    else:
+        word = word_app
+
     doc = None
     
     af_applied = []
@@ -69,15 +76,17 @@ def execute_operational_audit(
     
     com_inserted = []
     com_skipped = []
-    skipped_reasons = defaultdict(int)
+    skipped_reasons: typing.DefaultDict[str, int] = defaultdict(int)
     
     inserted_comment_count = 0
     aggregated_comment_count = 0
     autofix_summary_comment_count = 0
     
     try:
-        word = win32com.client.DispatchEx("Word.Application")
-        word.Visible = False
+        if own_word or word is None:
+            word = win32com.client.DispatchEx("Word.Application")
+            word.Visible = False
+            own_word = True
         doc = word.Documents.Open(str(output_path.resolve()))
         protected = protected_field_ranges(doc)
         
@@ -87,7 +96,7 @@ def execute_operational_audit(
         verified_fixes = af_pre.get("verified_auto_fixes", [])
         
         # Select summary targets (lowest range per rule)
-        summary_targets = {}
+        summary_targets: dict[str, Any] = {}
         for item in verified_fixes:
             rule = item["rule_id"]
             if rule not in summary_targets or item["verified_range_start"] < summary_targets[rule]["verified_range_start"]:

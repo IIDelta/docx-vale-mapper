@@ -17,6 +17,7 @@ Must not:
 
 from __future__ import annotations
 
+import typing
 from collections import Counter
 
 from validators.abbreviationvalidator import (
@@ -117,7 +118,7 @@ def filter_findings_by_context(
     }
 
     retained: list[dict] = []
-    suppressed = Counter()
+    suppressed: typing.Counter[str] = Counter()
 
     for finding in findings:
         rule_id = finding.get("Check", "")
@@ -129,7 +130,8 @@ def filter_findings_by_context(
             ] += 1
             continue
 
-        record = record_by_line.get(line_number)
+        line_num_int = int(finding.get("Line", -1)) if finding.get("Line") is not None else -1
+        record = record_by_line.get(line_num_int)
 
         if record is None:
             retained.append(finding)

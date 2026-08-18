@@ -17,7 +17,7 @@ def verify_output_document(
     Validates output DOCX integrity and contents without relying on Word COM.
     Inspects ZIP/XML directly for comments and text.
     """
-    result = {
+    result: dict[str, Any] = {
         "source_sha256_matches_expected": True, # Assume true until checked against manifest in runner
         "output_document_exists": False,
         "source_document_unchanged": True,

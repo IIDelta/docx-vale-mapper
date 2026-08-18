@@ -27,7 +27,7 @@ from validators.abbreviationvalidator import ParagraphRecord, make_finding
 
 def load_scientific_terms(config_path: Path) -> dict[str, list[str]]:
     """Load controlled scientific typography terms without guessing context."""
-    empty = {"italic_required": [], "roman_required": []}
+    empty: dict[str, list[str]] = {"italic_required": [], "roman_required": []}
     if not config_path.is_file():
         return empty
     with config_path.open(encoding="utf-8") as input_file:
