@@ -36,10 +36,20 @@ def execute_operational_audit(
         raise RuntimeError("Source SHA does not match audit manifest.")
         
     if not af_pre.get("source_sha256_matches") or af_pre.get("unverified_count") != 0:
-        raise RuntimeError("Auto-fix preflight is not fully verified.")
+        unverified_details = ""
+        unverified_items = af_pre.get("unverified_auto_fixes", [])
+        if unverified_items:
+            first_fail = unverified_items[0]
+            unverified_details = f" First failure: {first_fail.get('reason')} on '{first_fail.get('plan', {}).get('match')}'"
+        raise RuntimeError(f"Auto-fix preflight is not fully verified.{unverified_details}")
         
     if not com_pre.get("source_sha256_matches") or com_pre.get("unverified_count") != 0:
-        raise RuntimeError("Comment preflight is not fully verified.")
+        unverified_details = ""
+        unverified_items = com_pre.get("unverified_comments", [])
+        if unverified_items:
+            first_fail = unverified_items[0]
+            unverified_details = f" First failure: {first_fail.get('reason')} on '{first_fail.get('plan', {}).get('finding', {}).get('Match')}'"
+        raise RuntimeError(f"Comment preflight is not fully verified.{unverified_details}")
 
     if output_path.exists():
         raise RuntimeError(f"Output already exists: {output_path}")
