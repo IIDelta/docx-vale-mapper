@@ -1,3 +1,20 @@
+"""
+Purpose:
+    Run Word-dependent structural validators.
+
+Inputs:
+    Open Word COM document and ParagraphRecord collection.
+
+Outputs:
+    Structural findings for abbreviations, typography, references, tables,
+    captions, footnotes, figures, and appendices.
+
+Must not:
+    Insert comments.
+    Save documents.
+    Apply auto-fixes.
+"""
+
 import re
 import traceback
 from collections import Counter

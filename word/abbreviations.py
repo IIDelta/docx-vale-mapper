@@ -1,3 +1,19 @@
+"""
+Purpose:
+    Extract and score candidate List of Abbreviations tables from Word documents.
+
+Inputs:
+    Word COM table objects and abbreviation policy data.
+
+Outputs:
+    AbbreviationEntry records.
+
+Must not:
+    Change Word content.
+    Write reports.
+    Apply terminology replacements.
+"""
+
 import re
 
 from validators.abbreviationvalidator import (

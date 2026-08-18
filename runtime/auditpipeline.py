@@ -1,3 +1,20 @@
+"""
+Purpose:
+    Orchestrate the end-to-end audit lifecycle.
+
+Inputs:
+    Source DOCX path, output base path, audit mode, audit profile,
+    progress/status callbacks.
+
+Outputs:
+    JSON artifacts, optional output DOCX, optional comment/auto-fix execution.
+
+Must not:
+    Construct Tkinter widgets.
+    Define Style Guide rules.
+    Overwrite source DOCX files.
+"""
+
 import json
 import os
 import subprocess

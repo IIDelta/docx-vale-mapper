@@ -1,3 +1,19 @@
+"""
+Purpose:
+    Extract normalized Word paragraphs and preserve audit-relevant location data.
+
+Inputs:
+    Open Word COM document.
+
+Outputs:
+    Vale input payload, line/range maps, ParagraphRecord collection.
+
+Must not:
+    Insert comments.
+    Apply auto-fixes.
+    Write output DOCX files.
+"""
+
 import re
 
 from validators.abbreviationvalidator import (

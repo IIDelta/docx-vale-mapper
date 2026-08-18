@@ -1,3 +1,18 @@
+"""
+Purpose:
+    Write audit summary artifacts.
+
+Inputs:
+    Findings, suppression metrics, comment metrics, and paragraph metadata.
+
+Outputs:
+    audit_summary.json.
+
+Must not:
+    Open Word.
+    Insert comments.
+    Modify source or output DOCX files.
+"""
 
 import json
 from collections import Counter

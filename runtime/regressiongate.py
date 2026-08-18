@@ -1,3 +1,19 @@
+"""
+Purpose:
+    Run the repository regression and unit-test gate before a document audit.
+
+Inputs:
+    Project root and regression test runner path.
+
+Outputs:
+    Returns normally when tests pass; raises RuntimeError when tests fail.
+
+Must not:
+    Open Word.
+    Modify audit artifacts.
+    Insert comments.
+"""
+
 from __future__ import annotations
 
 import subprocess

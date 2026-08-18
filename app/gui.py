@@ -1,3 +1,20 @@
+"""
+Purpose:
+    Build and manage the Tkinter user interface.
+
+Inputs:
+    User-selected document paths, audit mode, and audit options.
+
+Outputs:
+    Starts application workflow and displays progress/status.
+
+Must not:
+    Resolve Word ranges.
+    Apply auto-fixes.
+    Insert Word comments.
+    Implement Style Guide rules.
+"""
+
 import os
 import tkinter as tk
 from pathlib import Path

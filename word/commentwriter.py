@@ -1,3 +1,20 @@
+"""
+Purpose:
+    Resolve verified Word ranges and support controlled comment insertion.
+
+Inputs:
+    Verified findings, Word COM ranges, line/range maps, and protected fields.
+
+Outputs:
+    Resolved ranges and Word comments.
+
+Must not:
+    Guess an unverified anchor.
+    Modify source documents.
+    Apply auto-fixes.
+    Decide rule disposition.
+"""
+
 from typing import Any
 
 from validators.commentverification import (
