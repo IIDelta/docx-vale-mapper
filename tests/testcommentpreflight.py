@@ -10,8 +10,7 @@ class CommentPreflightTests(unittest.TestCase):
         self.assertEqual(
             resolve_comment_offset(
                 "End of Study (EOS)",
-                "End of Study",
-                [0, 11],
+                {"match": "End of Study", "span": [1, 12]},
             ),
             0,
         )
@@ -20,8 +19,7 @@ class CommentPreflightTests(unittest.TestCase):
         self.assertEqual(
             resolve_comment_offset(
                 "Use End of Study.",
-                "End of Study",
-                None,
+                {"match": "End of Study"},
             ),
             4,
         )
@@ -30,8 +28,7 @@ class CommentPreflightTests(unittest.TestCase):
         self.assertIsNone(
             resolve_comment_offset(
                 "End of Trial",
-                "End of Study",
-                None,
+                {"match": "End of Study"},
             )
         )
 

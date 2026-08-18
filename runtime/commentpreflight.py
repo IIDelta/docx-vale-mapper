@@ -8,23 +8,22 @@ from validators.abbreviationvalidator import clean_text
 from validators.fieldprotection import protected_field_ranges, ranges_overlap
 
 
-def resolve_comment_offset(
-    raw_text: str,
-    match_text: str,
-    span,
-) -> int | None:
+from word.reader import vale_text_with_offset
+
+def resolve_comment_offset(raw_text: str, item: dict) -> int | None:
     """Resolve a planned comment target within one Word paragraph."""
+    match_text = item.get("match", "")
+    span = item.get("span")
+    vale_text, leading_offset = vale_text_with_offset(raw_text)
+
     if isinstance(span, list) and span:
-        candidate = int(span[0])
+        vale_offset = int(span[0]) - 1
+        if vale_text[vale_offset : vale_offset + len(match_text)] == match_text:
+            return vale_offset + leading_offset
 
-        if raw_text[
-            candidate:candidate + len(match_text)
-        ] == match_text:
-            return candidate
+    candidate = vale_text.find(match_text)
+    return candidate + leading_offset if candidate >= 0 else None
 
-    candidate = raw_text.find(match_text)
-
-    return candidate if candidate >= 0 else None
 
 
 def run_comment_preflight(
@@ -114,12 +113,15 @@ def run_comment_preflight(
                             "paragraph_text_mismatch"
                         )
 
-                    match_text = finding["Match"]
+                    match_text = finding.get("Match", "")
 
+                    # Create a mock 'item' expected by resolve_comment_offset
                     offset = resolve_comment_offset(
                         raw_text,
-                        match_text,
-                        finding.get("Span"),
+                        {
+                            "match": match_text,
+                            "span": finding.get("Span")
+                        }
                     )
 
                     if offset is None:
@@ -138,6 +140,11 @@ def run_comment_preflight(
                         raise ValueError(
                             "protected_word_field"
                         )
+
+                    # Verify text mismatch on actual raw string 
+                    extracted_text = raw_text[offset : offset + len(match_text)]
+                    if extracted_text.replace('\r', ' ').replace('\x07', ' ').replace('\x0b', ' ').replace('\n', ' ') != match_text:
+                        raise ValueError(f"text_mismatch_at_offset: expected {repr(match_text)}, got {repr(extracted_text)}")
 
                     result["verified_comments"].append(
                         {
