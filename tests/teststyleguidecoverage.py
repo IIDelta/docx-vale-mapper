@@ -33,6 +33,13 @@ class StyleGuideCoverageTests(unittest.TestCase):
 
     def test_coverage_entries_use_declared_statuses_and_notes(self) -> None:
         manifest = self.load_manifest()
+        
+        expected_statuses = {
+            "auto_fix", "comment", "report_only",
+            "disabled", "manual", "deferred_scope"
+        }
+        self.assertSetEqual(set(manifest["status_values"]), expected_statuses)
+        
         allowed_statuses = set(manifest["status_values"])
         for item in manifest["coverage"]:
             self.assertIn(item.get("status"), allowed_statuses)

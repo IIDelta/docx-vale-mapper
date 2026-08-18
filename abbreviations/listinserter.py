@@ -18,8 +18,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pythoncom
-import win32com.client
+try:
+    import pythoncom
+    import win32com.client
+except ImportError:
+    pythoncom = None  # type: ignore
+    win32com = None  # type: ignore
 
 from abbreviations.listgenerator import (
     ListGenerationPlan,

@@ -1,124 +1,125 @@
 {
   "version": "1.0",
   "status_values": [
-    "implemented_standard",
-    "implemented_advanced",
-    "manual_review",
-    "deferred",
-    "not_automatable"
+    "auto_fix",
+    "comment",
+    "report_only",
+    "disabled",
+    "manual",
+    "deferred_scope"
   ],
   "coverage": [
     {
       "guide_section": "1.0",
       "topic": "Abbreviations and Acronyms",
-      "status": "implemented_standard",
-      "notes": "Mechanical abbreviation rules, controlled registry, List of Abbreviations checks, first-use checks, candidate review, and list generation are implemented."
+      "status": "auto_fix",
+      "notes": "Mechanical abbreviation rules (DottedAbbreviations) are auto_fix. List mapping and first-use are comments. Others report_only."
     },
     {
       "guide_section": "2.0",
       "topic": "Spelling",
-      "status": "implemented_advanced",
-      "notes": "Curated American-spelling review and nonpossessive eponym rules are implemented. Broad British-to-American replacement remains deferred because of MedDRA and formal-name exceptions."
+      "status": "report_only",
+      "notes": "Curated American-spelling review and nonpossessive eponym rules are report_only. Broad British-to-American replacement remains deferred_scope."
     },
     {
       "guide_section": "3.0",
       "topic": "Terminology and Usage",
-      "status": "implemented_standard",
-      "notes": "Core clinical terminology, preferred wording, lean writing, inclusive language, participant terminology, dates, ages, and selected quantitative conventions are implemented."
+      "status": "comment",
+      "notes": "Core clinical terminology, inclusive language, participant terminology, dates, and selected quantitative conventions are operationalized as comments or report_only."
     },
     {
       "guide_section": "4.0",
       "topic": "Capitalization",
-      "status": "implemented_advanced",
-      "notes": "Labels followed by numerals, clinical descriptors, generic document references, and selected eponyms are implemented. Heading title case is deferred because Word All Caps style formatting requires a separate formatting-aware approach. Heading title-case review now respects Word All Caps and Small Caps formatting."
+      "status": "report_only",
+      "notes": "Labels followed by numerals, generic references, and heading case are report_only because they require context."
     },
     {
       "guide_section": "5.0",
       "topic": "Punctuation",
-      "status": "implemented_standard",
-      "notes": "Multiple punctuation spaces are currently production-suppressed. Forward slash, numeral apostrophe, email, dash mechanics, and known compound forms are implemented."
+      "status": "auto_fix",
+      "notes": "Multiple punctuation spaces and dash mechanics are auto_fix. Forward slash is report_only."
     },
     {
       "guide_section": "6.0",
       "topic": "Lists",
-      "status": "implemented_advanced",
-      "notes": "List introduction, single-item list, capitalization, and punctuation checks are implemented but remain Advanced-only pending further protocol calibration."
+      "status": "comment",
+      "notes": "List introduction and list item capitalization are implemented as comments."
     },
     {
       "guide_section": "7.0",
       "topic": "Numbers",
-      "status": "implemented_standard",
-      "notes": "Dates, age expressions, selected prose ranges, p values, confidence intervals, operator spacing, percentages, and temperature spacing are implemented. Numeric ratio slash-versus-colon review is now implemented."
+      "status": "report_only",
+      "notes": "Age expressions, prose ranges, confidence intervals, p values, and ratio formats are report_only."
     },
     {
       "guide_section": "8.0",
       "topic": "Symbols and Units",
-      "status": "implemented_advanced",
-      "notes": "Trademark symbols, ampersands, selected symbol spacing, and mathematical notation are implemented. Nonbreaking spaces, rates, ratios, equations, and rounding remain Advanced or Manual Review. Nonbreaking-space review is implemented for eligible body text."
+      "status": "auto_fix",
+      "notes": "Nonbreaking spaces for units and math operator spacing are auto_fix."
     },
     {
       "guide_section": "9.0",
       "topic": "Tables, Figures, and Appendices",
-      "status": "implemented_advanced",
-      "notes": "Table headings, zero values, captions, footnotes, figures, and appendix numbering are implemented but remain Advanced-only because complex protocols require context calibration."
+      "status": "comment",
+      "notes": "Table headings and zero values are comments. Figure visual review is manual/disabled."
     },
     {
       "guide_section": "10.0",
       "topic": "Typography",
-      "status": "implemented_advanced",
-      "notes": "Scientific species, Latin expressions, chemical prefixes, and radiolabel formatting are implemented through Word formatting inspection. Registry-approved scientific terms can now be checked for italic or roman formatting."
+      "status": "comment",
+      "notes": "Scientific species, Latin expressions, and radiolabel formatting are comments via Word formatting inspection."
     },
     {
       "guide_section": "11.0",
       "topic": "References",
-      "status": "implemented_advanced",
-      "notes": "Raw external URLs, active hyperlinks, trial aliases, and basic section-reference capitalization are implemented. Citation field protection and EndNote-aware validation are in progress. Citation placement before punctuation is now reviewed. Protected citation, bibliography, and dynamic-reference field paragraphs are context-suppressed while reference-specific rules remain eligible."
+      "status": "report_only",
+      "notes": "Raw external URLs, active hyperlinks, and citation placement are report_only."
     },
     {
       "guide_section": "12.0",
       "topic": "Appendices",
-      "status": "implemented_advanced",
-      "notes": "Appendix table and figure prefix/sequence checks are implemented. Broader appendix-document structure remains deferred."
+      "status": "report_only",
+      "notes": "Broader appendix-document structure is deferred_scope or report_only."
     },
     {
       "guide_section": "Appendix A",
       "topic": "Abbreviations Not Requiring Expansion",
-      "status": "implemented_standard",
-      "notes": "Protected-term policy and registry synchronization are implemented."
+      "status": "comment",
+      "notes": "Protected-term policy and first use without expansion are comments."
     },
     {
       "guide_section": "Appendix B",
       "topic": "Redundant Phrases",
-      "status": "implemented_standard",
-      "notes": "Curated redundancy checks are implemented."
+      "status": "report_only",
+      "notes": "Curated redundancy checks are report_only."
     },
     {
       "guide_section": "Appendix C",
       "topic": "Correct and Preferred Wording",
-      "status": "implemented_standard",
-      "notes": "Core preferred wording, terminology, trial naming, and lean-writing checks are implemented."
+      "status": "comment",
+      "notes": "Core preferred wording and trial naming are comments; lean-writing checks are report_only."
     },
     {
       "guide_section": "Appendix D",
       "topic": "Commonly Misused Words and Phrases",
-      "status": "implemented_advanced",
-      "notes": "Comprise usage and selected terminology checks are implemented. Grammar-dependent entries remain Manual Review."
+      "status": "report_only",
+      "notes": "Comprise usage and selected terminology checks are report_only."
     }
   ],
   "remaining_backlog": [
     {
       "topic": "Trial title quotation review",
-      "target_status": "manual_review",
+      "target_status": "manual",
       "priority": "medium"
     },
     {
       "topic": "Rounding and denominator correctness",
-      "target_status": "manual_review",
+      "target_status": "manual",
       "priority": "medium"
     },
     {
       "topic": "Figure image quality and resolution",
-      "target_status": "manual_review",
+      "target_status": "manual",
       "priority": "low"
     }
   ]
