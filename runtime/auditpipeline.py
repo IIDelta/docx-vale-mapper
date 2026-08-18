@@ -70,7 +70,12 @@ from runtime.commentbudget import (
 from runtime.commentpolicy import (
     load_comment_policy,
     disposition,
+    build_comment_plan,
+    write_comment_plan,
 )
+from runtime.autofixpreflight import run_preflight as run_autofix_preflight
+from runtime.commentpreflight import run_comment_preflight
+from runtime.execution import execute_operational_audit
 from runtime.regressiongate import (
     run_regression_gate,
 )
@@ -350,36 +355,38 @@ def run_scan_thread(
             PROJECT_ROOT / "config" / "commentpolicy.json"
         )
 
+        comment_plan_data = build_comment_plan(
+            findings=context_filtered_errors,
+            policy=comment_policy,
+        )
+
+        plan_path = write_comment_plan(
+            output_base=audited_output_path,
+            plan=comment_plan_data,
+        )
+        print(f"Comment plan written: {plan_path}")
+
+        for disp, count in comment_plan_data["rule_dispositions"].items():
+            if disp == "disabled":
+                for finding in comment_plan_data["disabled_findings"]:
+                    suppressed_findings[f"{finding.get('Check', 'Unknown')}:disabled_by_policy"] += 1
+
         errors = []
         for finding in context_filtered_errors:
-            disp = disposition(finding, comment_policy)
-            if disp == "disabled":
-                suppressed_findings[f"{finding.get('Check', 'Unknown')}:disabled_by_policy"] += 1
-                continue
-            errors.append(finding)
+            if disposition(finding, comment_policy) != "disabled":
+                errors.append(finding)
 
-        comment_metrics[
-            "candidate_comment_count"
-        ] = len(errors)
+        comment_metrics["candidate_comment_count"] = len(errors)
 
         if suppressed_findings:
             print(
                 "Context-suppressed findings: "
                 f"{sum(suppressed_findings.values())}"
             )
+            for reason, count in sorted(suppressed_findings.items()):
+                print(f"  {count} suppressed: {reason}")
 
-            for reason, count in sorted(
-                suppressed_findings.items()
-            ):
-                print(
-                    f"  {count} suppressed: {reason}"
-                )
-
-        deduplicated_count = (
-            len(context_filtered_errors)
-            - len(errors)
-        )
-
+        deduplicated_count = len(context_filtered_errors) - len(errors)
         if deduplicated_count > 0:
             print(
                 "Duplicate findings removed before "
@@ -395,435 +402,9 @@ def run_scan_thread(
             suppressed_findings=suppressed_findings,
             paragraph_records=paragraph_records,
         )
-        print(
-            f"Audit findings report written: {findings_report_path}"
-        )
+        print(f"Audit findings report written: {findings_report_path}")
 
-        if not comments_are_enabled(audit_mode):
-            comment_metrics["skipped_comment_reasons"][
-                "comment_insertion_disabled"
-            ] += len(errors)
-
-            audit_stage = "Writing reports-only audit summary"
-            write_audit_summary(
-                output_path=audited_output_path,
-                audit_profile=audit_profile,
-                vale_findings=vale_errors,
-                structural_findings=structural_findings,
-                final_findings=errors,
-                suppressed_findings=suppressed_findings,
-                comment_metrics=comment_metrics,
-                paragraph_records=paragraph_records,
-            )
-
-            vale_version = ""
-            for check in preflight_result["checks"]:
-                if check["name"] == "Vale CLI":
-                    vale_version = check["details"]
-                    break
-            content_zone_counts = Counter(
-                record.content_zone
-                for record in paragraph_records
-            )
-            manifest = build_audit_manifest(
-                source_path=source_path,
-                output_path=audited_output_path,
-                audit_profile=audit_profile,
-                audit_mode=audit_mode,
-                output_document_created=False,
-                vale_version=vale_version,
-                final_findings=errors,
-                suppressed_findings=suppressed_findings,
-                comment_metrics=comment_metrics,
-                content_zone_counts=dict(content_zone_counts),
-                preflight_result=preflight_result,
-            )
-            manifest_path = write_audit_manifest(
-                manifest=manifest,
-                output_path=audited_output_path,
-            )
-            print(f"Audit manifest written: {manifest_path}")
-
-            status_var.set(
-                "Complete: JSON reports written; Word comments disabled."
-            )
-            progress_var.set(100)
-            messagebox.showinfo(
-                "Audit Complete",
-                (
-                    "Audit complete. No Word comments or audited DOCX "
-                    "were created."
-                    f"Findings report:{findings_report_path}"
-                    f"Findings: {len(errors)}"
-                ),
-            )
-            return
-
-        # ------------------------------------------------------------
-        # Phase 9: Resolve ranges and insert comments
-        # ------------------------------------------------------------
-        audit_stage = "Inserting Word comments"
-
-        status_var.set(
-            f"Step 3/3: Injecting {len(errors)} comments..."
-        )
-
-        total_errors = len(errors)
-
-        def finding_start_position(
-            finding: dict,
-        ) -> int:
-            """Return a stable location for reverse-order comments."""
-
-            range_start = finding.get("RangeStart")
-
-            if isinstance(range_start, int):
-                return range_start
-
-            line_number = finding.get("Line")
-
-            paragraph_range = line_to_range.get(
-                line_number
-            )
-
-            if paragraph_range:
-                return paragraph_range[0]
-
-            return 0
-
-        ordered_errors = sorted(
-            errors,
-            key=finding_start_position,
-            reverse=True,
-        )
-
-        # Final deduplication guard.
-        #
-        # Pre-range deduplication cannot catch findings that differ
-        # in Vale span or source metadata but resolve to the same
-        # exact Word range.
-        inserted_comment_range_keys: set[
-            tuple[str, int, int]
-        ] = set()
-
-        comment_budget = load_comment_budget(
-            PROJECT_ROOT / "config" / "commentbudget.json"
-        )
-        selected_errors, deferred_findings = apply_comment_budget(
-            findings=errors,
-            budget=comment_budget,
-        )
-        for deferred_finding in deferred_findings:
-            deferred_reason = deferred_finding.get(
-                "DeferredReason", "comment_budget_unknown"
-            )
-            comment_metrics["skipped_comment_reasons"][
-                deferred_reason
-            ] += 1
-        if comment_budget["write_full_review_queue"]:
-            queue_path = write_comment_queue(
-                output_path=audited_output_path,
-                all_findings=errors,
-                selected_findings=selected_errors,
-                deferred_findings=deferred_findings,
-                budget=comment_budget,
-            )
-            print(f"Comment review queue written: {queue_path}")
-        ordered_errors = sorted(
-            selected_errors,
-            key=finding_start_position,
-            reverse=True,
-        )
-        total_errors = len(ordered_errors)
-        print(
-            f"Comment budget: {len(errors)} candidates; "
-            f"{total_errors} selected; "
-            f"{len(deferred_findings)} deferred."
-        )
-
-        status_var.set(
-            f"Step 3/3: Injecting {total_errors} prioritized comments "
-            f"from {len(errors)} findings..."
-        )
-        progress_var.set(66)
-
-        for idx, error in enumerate(
-            ordered_errors,
-            start=1,
-        ):
-            range_start = error.get("RangeStart")
-            range_end = error.get("RangeEnd")
-
-            target_range = None
-
-            # --------------------------------------------------------
-            # Exact structural ranges
-            # --------------------------------------------------------
-            if (
-                isinstance(range_start, int)
-                and isinstance(range_end, int)
-                and range_end > range_start
-            ):
-                document_end = doc.Content.End
-
-                safe_start = max(
-                    0,
-                    min(
-                        range_start,
-                        document_end - 1,
-                    ),
-                )
-
-                safe_end = max(
-                    safe_start + 1,
-                    min(
-                        range_end,
-                        document_end,
-                    ),
-                )
-
-                target_range = doc.Range(
-                    safe_start,
-                    safe_end,
-                )
-
-            # --------------------------------------------------------
-            # Vale and paragraph-level findings
-            # --------------------------------------------------------
-            else:
-                line_number = error.get("Line")
-
-                paragraph_range = line_to_range.get(
-                    line_number
-                )
-
-                if paragraph_range:
-                    (
-                        paragraph_start,
-                        paragraph_end,
-                    ) = paragraph_range
-
-                    vale_text = line_to_vale_text.get(
-                        line_number,
-                        "",
-                    )
-
-                    match_text = str(
-                        error.get("Match", "")
-                    )
-
-                    occurrence_index = (
-                        vale_match_occurrence_index(
-                            vale_text=vale_text,
-                            match_text=match_text,
-                            span=error.get("Span"),
-                        )
-                    )
-
-                    word_find_range = find_vale_match_range(
-                        doc=doc,
-                        paragraph_start=paragraph_start,
-                        paragraph_end=paragraph_end,
-                        match_text=match_text,
-                        occurrence_index=occurrence_index,
-                    )
-
-                    if word_find_range is not None:
-                        target_range = word_find_range
-
-                    else:
-                        match_offsets = resolve_match_offsets(
-                            vale_text=vale_text,
-                            match_text=match_text,
-                            span=error.get("Span"),
-                        )
-
-                        if match_offsets is not None:
-                            (
-                                match_start,
-                                match_end,
-                            ) = match_offsets
-
-                            safe_start = (
-                                paragraph_start
-                                + match_start
-                            )
-
-                            safe_end = (
-                                paragraph_start
-                                + match_end
-                            )
-
-                        else:
-                            vale_span_range = (
-                                vale_span_to_word_range(
-                                    paragraph_start=paragraph_start,
-                                    paragraph_end=paragraph_end,
-                                    span=error.get("Span"),
-                                )
-                            )
-
-                            if vale_span_range is not None:
-                                (
-                                    safe_start,
-                                    safe_end,
-                                ) = vale_span_range
-
-                            else:
-                                document_end = doc.Content.End
-
-                                safe_start = max(
-                                    0,
-                                    min(
-                                        paragraph_start,
-                                        document_end - 1,
-                                    ),
-                                )
-
-                                safe_end = max(
-                                    safe_start + 1,
-                                    min(
-                                        paragraph_end,
-                                        document_end,
-                                    ),
-                                )
-
-                        target_range = doc.Range(
-                            safe_start,
-                            safe_end,
-                        )
-
-            if target_range is None:
-                comment_metrics[
-                    "skipped_comment_reasons"
-                ]["no_target_range"] += 1
-
-                continue
-
-            protected_ranges = protected_field_ranges(doc)
-            if ranges_overlap(
-                int(target_range.Start),
-                int(target_range.End),
-                protected_ranges,
-            ):
-                comment_metrics[
-                    "skipped_comment_reasons"
-                ]["protected_word_field"] += 1
-                print(
-                    "Skipping comment inside protected Word field."
-                )
-                continue
-
-            severity = error.get(
-                "Severity",
-                "suggestion",
-            ).upper()
-
-            match_text = str(
-                error.get("Match", "")
-            )
-
-            message = error.get(
-                "Message",
-                "",
-            )
-
-            rule_id = error.get(
-                "Check",
-                "Clinical.UnknownRule",
-            )
-
-            # --------------------------------------------------------
-            # Final same-run resolved-range deduplication
-            # --------------------------------------------------------
-            resolved_range_key = (
-                rule_id,
-                int(target_range.Start),
-                int(target_range.End),
-            )
-
-            if (
-                resolved_range_key
-                in inserted_comment_range_keys
-            ):
-                print(
-                    "Skipping duplicate resolved comment: "
-                    f"{rule_id} -> '{match_text}'"
-                )
-
-                comment_metrics[
-                    "skipped_comment_reasons"
-                ]["duplicate_resolved_range"] += 1
-
-                continue
-
-            # --------------------------------------------------------
-            # Verified Vale anchors only
-            # --------------------------------------------------------
-            if (
-                isinstance(error.get("Span"), list)
-                and match_text
-            ):
-                if not vale_anchor_is_verified(
-                    word_range_text=target_range.Text,
-                    vale_match_text=match_text,
-                ):
-                    print(
-                        "Skipping unverified Vale anchor: "
-                        f"{rule_id} -> '{match_text}' "
-                        f"(Word range: '{target_range.Text}')"
-                    )
-
-                    comment_metrics[
-                        "skipped_comment_reasons"
-                    ]["unverified_vale_anchor"] += 1
-
-                    continue
-
-            comment_text = (
-                f"{rule_id} {severity} -> "
-                f"'{match_text}': {message}"
-            )
-
-            try:
-                new_comment = doc.Comments.Add(
-                    Range=target_range,
-                    Text=comment_text,
-                )
-
-                try:
-                    new_comment.Author = "MVA"
-                    new_comment.Initial = "MVA"
-                except Exception:
-                    pass
-
-                inserted_comment_range_keys.add(
-                    resolved_range_key
-                )
-
-                comment_metrics[
-                    "inserted_comment_count"
-                ] += 1
-
-            except Exception as comment_error:
-                print(
-                    "Comment insertion skipped for "
-                    f"{rule_id}: {comment_error}"
-                )
-
-                comment_metrics[
-                    "skipped_comment_reasons"
-                ]["word_comment_insertion_error"] += 1
-
-            progress_var.set(
-                66 + ((idx / max(1, total_errors)) * 34)
-            )
-
-        # ------------------------------------------------------------
-        # Phase 10: Audit summary and output save
-        # ------------------------------------------------------------
         audit_stage = "Writing audit summary"
-
         write_audit_summary(
             output_path=audited_output_path,
             audit_profile=audit_profile,
@@ -835,29 +416,15 @@ def run_scan_thread(
             paragraph_records=paragraph_records,
         )
 
-        audit_stage = "Saving audited document"
-
-        status_var.set(
-            "Saving audited document..."
-        )
-
-        doc.SaveAs2(abs_output)
-
-        # ------------------------------------------------------------
-        # Phase 11: Audit manifest
-        # ------------------------------------------------------------
         audit_stage = "Writing audit manifest"
-
         vale_version = ""
-
         for check in preflight_result["checks"]:
             if check["name"] == "Vale CLI":
                 vale_version = check["details"]
                 break
 
         content_zone_counts = Counter(
-            record.content_zone
-            for record in paragraph_records
+            record.content_zone for record in paragraph_records
         )
 
         manifest = build_audit_manifest(
@@ -865,62 +432,96 @@ def run_scan_thread(
             output_path=audited_output_path,
             audit_profile=audit_profile,
             audit_mode=audit_mode,
-            output_document_created=True,
+            output_document_created=comments_are_enabled(audit_mode),
             vale_version=vale_version,
             final_findings=errors,
             suppressed_findings=suppressed_findings,
             comment_metrics=comment_metrics,
-            content_zone_counts=dict(
-                content_zone_counts
-            ),
+            content_zone_counts=dict(content_zone_counts),
             preflight_result=preflight_result,
         )
-
         manifest_path = write_audit_manifest(
             manifest=manifest,
             output_path=audited_output_path,
         )
+        print(f"Audit manifest written: {manifest_path}")
 
-        print(
-            f"Audit manifest written: {manifest_path}"
+        if not comments_are_enabled(audit_mode):
+            comment_metrics["skipped_comment_reasons"]["comment_insertion_disabled"] += len(errors)
+            status_var.set("Complete: JSON reports written; Word comments disabled.")
+            progress_var.set(100)
+            messagebox.showinfo(
+                "Audit Complete",
+                (
+                    "Audit complete. No Word comments or audited DOCX "
+                    "were created.\n"
+                    f"Findings report: {findings_report_path}\n"
+                    f"Findings: {len(errors)}"
+                ),
+            )
+            return
+
+        # ------------------------------------------------------------
+        # Phase 9: Preflight and Word Execution
+        # ------------------------------------------------------------
+        audit_stage = "Running Word execution preflights"
+        status_var.set("Step 3/3: Running preflights and Word execution...")
+        progress_var.set(70)
+
+        autofix_preflight_path = run_autofix_preflight(
+            source_path=source_path,
+            plan_path=plan_path,
+            manifest_path=manifest_path,
+            output_base=audited_output_path,
+        )
+        print(f"Auto-fix preflight written: {autofix_preflight_path}")
+
+        comment_preflight_path = run_comment_preflight(
+            source_path=source_path,
+            plan_path=plan_path,
+            manifest_path=manifest_path,
+            output_base=audited_output_path,
+        )
+        print(f"Comment preflight written: {comment_preflight_path}")
+
+        audit_stage = "Executing Operational Audit"
+        progress_var.set(80)
+
+        execution_results = execute_operational_audit(
+            source_path=source_path,
+            output_path=abs_output,
+            manifest_path=manifest_path,
+            autofix_preflight_path=autofix_preflight_path,
+            comment_preflight_path=comment_preflight_path,
+            output_base=audited_output_path,
         )
 
-        status_var.set(
-            "Complete! Document is ready."
-        )
-
+        status_var.set("Complete! Document is ready.")
         progress_var.set(100)
+
+        val_result = json.loads(execution_results["outputverification"].read_text(encoding="utf-8"))
 
         messagebox.showinfo(
             "Success",
             (
                 "Scan complete.\n\n"
                 f"Saved to:\n{abs_output}\n\n"
-                f"Inserted comments: "
-                f"{comment_metrics['inserted_comment_count']}\n"
-                f"Skipped comments: "
-                f"{sum(comment_metrics['skipped_comment_reasons'].values())}"
+                f"Auto-fixes applied: {val_result['applied_auto_fix_count']}\n"
+                f"Comments inserted: {val_result['inserted_comment_count']}\n"
+                f"Aggregated comments: {val_result['aggregated_comment_count']}"
             ),
         )
 
     except Exception as error:
-        status_var.set(
-            f"Error occurred during: {audit_stage}"
-        )
-
+        status_var.set(f"Error occurred during: {audit_stage}")
         error_details = traceback.format_exc()
-
-        print(
-            f"AUDIT ERROR DURING {audit_stage}:"
-        )
-
+        print(f"AUDIT ERROR DURING {audit_stage}:")
         print(error_details)
 
         messagebox.showerror(
             "Audit Error",
             (
-                f"Audit failed during:\n"
-                f"{audit_stage}\n\n"
+                f"Audit failed during:\n{audit_stage}\n\n"
                 f"{error}\n\n"
                 "Detailed traceback was printed to the PowerShell window."
             ),
@@ -950,12 +551,6 @@ def run_scan_thread(
         pythoncom.CoUninitialize()
 
         try:
-            start_btn.config(
-                state=tk.NORMAL
-            )
+            start_btn.config(state=tk.NORMAL)
         except Exception as button_error:
-            print(
-                "GUI cleanup warning: "
-                f"{button_error}"
-            )
-
+            print(f"GUI cleanup warning: {button_error}")

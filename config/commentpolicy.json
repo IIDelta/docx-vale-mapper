@@ -4,10 +4,8 @@
   "max_total_comments": 50,
   "max_comments_per_rule": 5,
   "auto_fix_rules": [
-    "Clinical.DashSpacing",
     "Clinical.DottedAbbreviations",
     "Clinical.MathOperatorSpacing",
-    "Clinical.MultiplePunctuationSpaces",
     "Clinical.UnitNonbreakingSpace"
   ],
   "comment_rules": [
@@ -42,6 +40,7 @@
     "Clinical.CompriseUsage",
     "Clinical.ConfidenceIntervals",
     "Clinical.DateNumeric",
+    "Clinical.DashSpacing",
     "Clinical.EmailFormat",
     "Clinical.Eponyms",
     "Clinical.ForwardSlashReview",
@@ -50,6 +49,7 @@
     "Clinical.InclusiveLanguageReview",
     "Clinical.LabelCapitalization",
     "Clinical.LeanPhrases",
+    "Clinical.MultiplePunctuationSpaces",
     "Clinical.NumberGrouping",
     "Clinical.NumeralApostrophes",
     "Clinical.NumeralAtSentenceStart",
