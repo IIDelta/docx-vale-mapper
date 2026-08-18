@@ -15,6 +15,8 @@
 - comment planning
 - auto-fix anchor preflight
 - controlled NBSP/math-spacing auto-fix pilot
+- unified operational execution path
+- phase 2 execution verification harness (fixtures + assertion scripts)
 
 ## Current Restrictions
 - Broad auto terminology replacement is not enabled.

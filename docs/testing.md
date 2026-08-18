@@ -26,5 +26,11 @@ python tests/runcommentpreflight.py --source "<source.docx>" --plan "<plan.json>
 
 ## Execution
 ```powershell
-python tests/executeautofixpilot.py --source "<source.docx>" --output "<output.docx>" --manifest "<manifest.json>" --preflight "<autofixpreflight.json>"
+python tests/execute_operational_audit.py --source "<source.docx>" --output "<output.docx>" --manifest "<manifest.json>" --autofix-preflight "<autofixpreflight.json>" --comment-preflight "<commentpreflight.json>"
+```
+
+## Phase 2 Verification
+```powershell
+python tests/createphase2fixtures.py
+python tests/runphase2executionverification.py
 ```
