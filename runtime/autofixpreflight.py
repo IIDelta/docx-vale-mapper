@@ -60,7 +60,7 @@ def run_preflight(source_path: Path, plan_path: Path, manifest_path: Path, outpu
 
                     # Verify text mismatch on actual raw string 
                     extracted_text = raw[offset : offset + len(item["match"])]
-                    if extracted_text.replace('\r', ' ').replace('\x07', ' ').replace('\x0b', ' ').replace('\n', ' ') != item["match"]:
+                    if extracted_text.replace('\xa0', ' ').replace('\r', ' ').replace('\x07', ' ').replace('\x0b', ' ').replace('\n', ' ') != item["match"]:
                         raise ValueError(f"text_mismatch_at_offset: expected {repr(item['match'])}, got {repr(extracted_text)}")
                     result["verified_auto_fixes"].append({**item,"verified_range_start":start,"verified_range_end":end})
                 except Exception as error:

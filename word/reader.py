@@ -43,7 +43,8 @@ def vale_text_with_offset(
     """
 
     offset_preserving_text = (
-        raw_text.replace("\r", " ")
+        raw_text.replace("\xa0", " ")
+        .replace("\r", " ")
         .replace("\x07", " ")
         .replace("\x0b", " ")
         .replace("\n", " ")

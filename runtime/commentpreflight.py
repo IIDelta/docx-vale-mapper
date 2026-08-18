@@ -143,7 +143,7 @@ def run_comment_preflight(
 
                     # Verify text mismatch on actual raw string 
                     extracted_text = raw_text[offset : offset + len(match_text)]
-                    if extracted_text.replace('\r', ' ').replace('\x07', ' ').replace('\x0b', ' ').replace('\n', ' ') != match_text:
+                    if extracted_text.replace('\xa0', ' ').replace('\r', ' ').replace('\x07', ' ').replace('\x0b', ' ').replace('\n', ' ') != match_text:
                         raise ValueError(f"text_mismatch_at_offset: expected {repr(match_text)}, got {repr(extracted_text)}")
 
                     result["verified_comments"].append(
