@@ -87,6 +87,10 @@ def execute_operational_audit(
             word = win32com.client.DispatchEx("Word.Application")
             word.Visible = False
             own_word = True
+            
+        # Optimization: Disable screen updating and events to drastically speed up execution (e.g. 20 mins -> 2 mins)
+        word.ScreenUpdating = False
+
         doc = word.Documents.Open(str(output_path.resolve()))
         protected = protected_field_ranges(doc)
         
@@ -152,7 +156,7 @@ def execute_operational_audit(
         # Group by rule_id
         comments_by_rule = defaultdict(list)
         for item in verified_comments:
-            comments_by_rule[item["plan"]["rule_id"]].append(item)
+            comments_by_rule[item["rule_id"]].append(item)
             
         for rule_id, items in comments_by_rule.items():
             # Filter report-only/disabled based on policy? Wait, if they are in commentpreflight, they are disposition "comment".
@@ -170,13 +174,13 @@ def execute_operational_audit(
             count = len(items)
             # Actually, the original comment_plan may have fewer items if it aggregated them already!
             # Let's check the original occurrence count from the plan
-            orig_occurrence_count = items[0]["plan"].get("occurrence_count", count)
+            orig_occurrence_count = items[0].get("occurrence_count", count)
             
             if orig_occurrence_count >= 5:
                 # Find first body-narrative
                 selected = None
                 for item in items:
-                    if item["plan"]["finding"].get("Context", {}).get("content_zone") == "body_narrative":
+                    if item.get("finding", {}).get("Context", {}).get("content_zone") == "body_narrative":
                         selected = item
                         break
                 if not selected:
@@ -187,7 +191,7 @@ def execute_operational_audit(
                 end = selected["verified_range_end"]
                 rng = doc.Range(start, end)
                 
-                finding = selected["plan"]["finding"]
+                finding = selected.get("finding", {})
                 severity = finding.get("Severity", "suggestion").upper()
                 match_text = finding.get("Match", "")
                 message = finding.get("Message", "")
@@ -211,7 +215,7 @@ def execute_operational_audit(
                     end = item["verified_range_end"]
                     rng = doc.Range(start, end)
                     
-                    finding = item["plan"]["finding"]
+                    finding = item.get("finding", {})
                     severity = finding.get("Severity", "suggestion").upper()
                     match_text = finding.get("Match", "")
                     message = finding.get("Message", "")
@@ -234,10 +238,29 @@ def execute_operational_audit(
 
     finally:
         if doc is not None:
-            doc.Close(SaveChanges=False)
+            try:
+                doc.Close(SaveChanges=False)
+            except Exception:
+                pass
+        
         if word is not None:
-            word.Quit()
-        pythoncom.CoUninitialize()
+            try:
+                # Re-enable ScreenUpdating if we used an existing word instance
+                word.ScreenUpdating = True
+            except Exception:
+                pass
+
+        if own_word:
+            if word is not None:
+                try:
+                    word.Quit()
+                except Exception as cleanup_error:
+                    print(f"Word application cleanup warning: {cleanup_error}")
+            try:
+                import pythoncom
+                pythoncom.CoUninitialize()
+            except Exception:
+                pass
         
     # ---------------------------
     # E. Output Validation
