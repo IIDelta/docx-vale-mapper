@@ -246,6 +246,23 @@ def run_scan_thread(
         )
 
         # ------------------------------------------------------------
+        # Release Word COM locks early
+        # ------------------------------------------------------------
+        if doc is not None:
+            try:
+                doc.Close(SaveChanges=False)
+            except Exception:
+                pass
+            doc = None
+            
+        if word is not None:
+            try:
+                word.Quit()
+            except Exception:
+                pass
+            word = None
+
+        # ------------------------------------------------------------
         # Phase 6: Candidate report
         # ------------------------------------------------------------
         try:
