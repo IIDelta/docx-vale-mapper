@@ -189,43 +189,6 @@ def validate_figures(
                 )
             )
 
-        review_target = (
-            caption_before
-            or caption_after
-        )
-
-        if review_target is not None:
-            findings.append(
-                make_range_finding(
-                    check="Clinical.FigureVisualReview",
-                    severity="warning",
-                    message=(
-                        "Style guide figure review: Verify that the "
-                        "figure is scalable without pixel distortion "
-                        "and that annotations are overlaid on the image."
-                    ),
-                    match=review_target.text,
-                    paragraph=review_target.paragraph,
-                    range_start=review_target.range_start,
-                    range_end=review_target.range_end,
-                )
-            )
-        else:
-            findings.append(
-                make_range_finding(
-                    check="Clinical.FigureVisualReview",
-                    severity="warning",
-                    message=(
-                        "Style guide figure review: Verify that the "
-                        "figure is scalable without pixel distortion "
-                        "and that annotations are overlaid on the image."
-                    ),
-                    match="Figure",
-                    paragraph=figure.paragraph,
-                    range_start=figure.paragraph.range_start,
-                    range_end=figure.paragraph.range_end,
-                )
-            )
 
     findings.extend(
         validate_figure_label_sequence(

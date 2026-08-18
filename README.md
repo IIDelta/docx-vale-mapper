@@ -6,7 +6,7 @@ The application combines:
 
 - Vale-based text rules;
 - Word structural validation;
-- context-aware Standard and Advanced audit profiles;
+- unified Operational Audit execution path;
 - Word comment insertion;
 - abbreviation discovery and registry management;
 - generated audit summaries and audit manifests.
@@ -19,9 +19,9 @@ The application combines:
 
 The application is an internal beta intended for controlled use on document copies.
 
-### Standard Audit
+### Operational Audit
 
-Recommended for real-world protocol and agency-response documents.
+The primary operational path for all clinical documents. 
 
 Includes:
 
@@ -31,21 +31,10 @@ Includes:
 - approved abbreviation first-use checks;
 - known typography checks;
 - external URL and active hyperlink checks;
-- candidate abbreviation report generation.
+- candidate abbreviation report generation;
+- list, table, figure, and appendix structure validation.
 
-Excludes experimental structural checks by default.
-
-### Advanced Structural Review
-
-Use only on controlled test documents or when validating document structure.
-
-Includes:
-
-- list validation;
-- table heading and zero-value checks;
-- table captions and footnotes;
-- figure validation;
-- appendix numbering checks.
+All behavior is centrally managed via `config/commentpolicy.json`.
 
 ---
 

@@ -82,10 +82,6 @@ class FigureValidatorTests(unittest.TestCase):
             checks,
         )
 
-        self.assertIn(
-            "Clinical.FigureVisualReview",
-            checks,
-        )
 
     def test_duplicate_figure_labels_are_flagged(
         self,
@@ -161,7 +157,3 @@ class FigureValidatorTests(unittest.TestCase):
             checks,
         )
 
-        self.assertIn(
-            "Clinical.FigureVisualReview",
-            checks,
-        )

@@ -45,9 +45,6 @@ from validators.appendixvalidator import (
     find_appendix_context,
     validate_appendix_elements,
 )
-from validators.auditprofile import (
-    is_advanced_profile,
-)
 from validators.captionfootnotevalidator import (
     CaptionRecord,
     FootnoteRecord,
@@ -988,9 +985,7 @@ def add_structural_findings(
     """
     Run structural validators according to the audit profile.
 
-    Standard Audit runs only trusted structural checks.
-    Advanced Structural Review additionally runs experimental
-    list/table/figure/appendix validators.
+    Operational Audit unconditionally runs all structural checks.
     """
 
     findings: list[dict] = []
@@ -1088,67 +1083,56 @@ def add_structural_findings(
         )
     )
 
-    # Advanced checks: opt-in only.
-    if is_advanced_profile(audit_profile):
-        print(
-            "Advanced Structural Review enabled."
-        )
+    print("Operational Audit enabled: Running all structural checks.")
 
-        findings.extend(
-            safe_structural_check(
-                "list validation",
-                lambda: validate_list_structure(
-                    paragraphs=paragraph_records,
-                ),
-            )
+    findings.extend(
+        safe_structural_check(
+            "list validation",
+            lambda: validate_list_structure(
+                paragraphs=paragraph_records,
+            ),
         )
+    )
 
-        findings.extend(
-            safe_structural_check(
-                "table validation",
-                lambda: add_table_findings(
-                    doc=doc,
-                    paragraph_records=paragraph_records,
-                ),
-            )
+    findings.extend(
+        safe_structural_check(
+            "table validation",
+            lambda: add_table_findings(
+                doc=doc,
+                paragraph_records=paragraph_records,
+            ),
         )
+    )
 
-        findings.extend(
-            safe_structural_check(
-                "caption and footnote validation",
-                lambda: add_caption_footnote_findings(
-                    doc=doc,
-                    paragraph_records=paragraph_records,
-                ),
-            )
+    findings.extend(
+        safe_structural_check(
+            "caption and footnote validation",
+            lambda: add_caption_footnote_findings(
+                doc=doc,
+                paragraph_records=paragraph_records,
+            ),
         )
+    )
 
-        findings.extend(
-            safe_structural_check(
-                "figure validation",
-                lambda: add_figure_findings(
-                    doc=doc,
-                    paragraph_records=paragraph_records,
-                ),
-            )
+    findings.extend(
+        safe_structural_check(
+            "figure validation",
+            lambda: add_figure_findings(
+                doc=doc,
+                paragraph_records=paragraph_records,
+            ),
         )
+    )
 
-        findings.extend(
-            safe_structural_check(
-                "appendix validation",
-                lambda: add_appendix_findings(
-                    doc=doc,
-                    paragraph_records=paragraph_records,
-                ),
-            )
+    findings.extend(
+        safe_structural_check(
+            "appendix validation",
+            lambda: add_appendix_findings(
+                doc=doc,
+                paragraph_records=paragraph_records,
+            ),
         )
-
-    else:
-        print(
-            "Standard Audit enabled: list, table, figure, "
-            "caption, footnote, and appendix checks are "
-            "disabled."
-        )
+    )
 
     return findings
 

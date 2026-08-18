@@ -87,7 +87,7 @@ Orchestrates the lifecycle of an audit run.
 
 ## Data Flow
 
-1. **Initialization**: The user initiates an audit (Standard or Advanced mode) via `main.py`.
+1. **Initialization**: The user initiates an audit (Operational Audit) via `main.py`.
 2. **Preflight**: The `runtime/preflight.py` verifies prerequisites (Word installed, Vale accessible, valid profile).
 3. **Parsing**: The document is read into memory via `python-docx` for structural checks.
 4. **Analysis**:

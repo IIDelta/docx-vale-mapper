@@ -16,7 +16,7 @@ class AuditReportTests(unittest.TestCase):
             report_path = write_audit_findings_report(
                 output_path=root / "audit.docx",
                 source_path=root / "source.docx",
-                audit_profile="Standard Audit",
+                audit_profile="Operational Audit",
                 audit_mode="reports_only",
                 findings=[
                     {

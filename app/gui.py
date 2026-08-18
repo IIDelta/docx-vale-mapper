@@ -211,54 +211,10 @@ def build_gui():
     )
 
     # ------------------------------------------------------------
-    # Audit profile
+    # Audit profile (Hardcoded for Operational Audit)
     # ------------------------------------------------------------
     audit_profile_var = tk.StringVar(
-        value="Standard Audit"
-    )
-
-    ttk.Label(
-        frame,
-        text="Audit Profile:",
-    ).grid(
-        row=2,
-        column=0,
-        sticky=tk.W,
-        pady=(5, 5),
-    )
-
-    audit_profile_combo = ttk.Combobox(
-        frame,
-        textvariable=audit_profile_var,
-        values=[
-            "Standard Audit",
-            "Advanced Structural Review",
-        ],
-        state="readonly",
-        width=32,
-    )
-
-    audit_profile_combo.grid(
-        row=2,
-        column=1,
-        sticky=tk.W,
-        padx=10,
-        pady=(5, 5),
-    )
-
-    ttk.Label(
-        frame,
-        text=(
-            "Standard Audit is recommended for real protocols. "
-            "Advanced Structural Review is experimental."
-        ),
-        wraplength=440,
-    ).grid(
-        row=3,
-        column=1,
-        sticky=tk.W,
-        padx=10,
-        pady=(0, 8),
+        value="Operational Audit"
     )
     insert_comments_var = tk.BooleanVar(value=False)
     ttk.Checkbutton(

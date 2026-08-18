@@ -73,6 +73,5 @@
 | `Clinical.TreatmentFailure` | 3.0 | report_only | warning | Full | Do not use 'treatment failure' |
 | `Clinical.TrialAliasFormat` | 11.0 | report_only | warning | Full | Trial alias formats |
 | `Clinical.TrialNumber` | Appendix C | report_only | warning | Full | Trial number formatting |
-| `Clinical.FigureVisualReview` | 9.0 | disabled | warning | Full | Manual visual check only |
 
 The machine-readable authority remains `config/commentpolicy.json`.

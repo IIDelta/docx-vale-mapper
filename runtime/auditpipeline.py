@@ -67,6 +67,10 @@ from runtime.commentbudget import (
     load_comment_budget,
     write_comment_queue,
 )
+from runtime.commentpolicy import (
+    load_comment_policy,
+    disposition,
+)
 from runtime.regressiongate import (
     run_regression_gate,
 )
@@ -338,9 +342,21 @@ def run_scan_thread(
             paragraph_records=paragraph_records,
         )
 
-        errors = deduplicate_findings(
+        context_filtered_errors = deduplicate_findings(
             context_filtered_errors
         )
+
+        comment_policy = load_comment_policy(
+            PROJECT_ROOT / "config" / "commentpolicy.json"
+        )
+
+        errors = []
+        for finding in context_filtered_errors:
+            disp = disposition(finding, comment_policy)
+            if disp == "disabled":
+                suppressed_findings[f"{finding.get('Check', 'Unknown')}:disabled_by_policy"] += 1
+                continue
+            errors.append(finding)
 
         comment_metrics[
             "candidate_comment_count"

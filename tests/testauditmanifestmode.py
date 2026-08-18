@@ -17,7 +17,7 @@ class AuditManifestModeTests(unittest.TestCase):
             manifest = build_audit_manifest(
                 source_path=source_path,
                 output_path=root / "reportbase.docx",
-                audit_profile="Standard Audit",
+                audit_profile="Operational Audit",
                 audit_mode="reports_only",
                 output_document_created=False,
                 vale_version="vale test",

@@ -69,6 +69,5 @@
     "Clinical.TrialNumber"
   ],
   "disabled_rules": [
-    "Clinical.FigureVisualReview"
   ]
 }
