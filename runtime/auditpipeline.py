@@ -506,7 +506,7 @@ def run_scan_thread(
 
         execution_results = execute_operational_audit(
             source_path=source_path,
-            output_path=abs_output,
+            output_path=audited_output_path,
             manifest_path=manifest_path,
             autofix_preflight_path=autofix_preflight_path,
             comment_preflight_path=comment_preflight_path,
