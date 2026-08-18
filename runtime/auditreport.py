@@ -17,6 +17,7 @@ FINDING_KEYS = (
     "RangeEnd",
     "Span",
     "Action",
+    "Context",
 )
 
 

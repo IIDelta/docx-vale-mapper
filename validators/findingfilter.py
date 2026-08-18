@@ -135,6 +135,20 @@ def filter_findings_by_context(
             retained.append(finding)
             continue
 
+        if finding.get("ParagraphIndex") is None:
+            finding["ParagraphIndex"] = record.index
+
+        finding["Context"] = {
+            "content_zone": record.content_zone,
+            "section_context": record.section_context,
+            "style_name": record.style_name,
+            "heading_level": record.heading_level,
+            "is_in_table": record.is_in_table,
+            "list_marker": record.list_marker,
+            "has_protected_field": record.has_protected_field,
+            "paragraph_text": record.text,
+        }
+
         if (
             record.has_protected_field
             and rule_id not in FIELD_ELIGIBLE_RULES
