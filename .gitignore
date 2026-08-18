@@ -9,8 +9,22 @@ reports/*.json
 reports/*.csv
 reports/*.md
 
-# Document-specific generated audit artifacts
-*.abbreviationreview.json
+# Generated real-document audit artifacts
+*.audit_findings.json
 *.audit_summary.json
 *.audit_manifest.json
+*.abbreviationreview.json
+*.commentplan.json
+*.commentpreflight.json
+*.autofixpreflight.json
+*.autofixexecution.json
+*.commentexecution.json
+*.outputverification.json
 *.listgeneration.json
+
+*_AUDITED.docx
+*_AUTOFIXPILOT.docx
+*_AUTOFIXVERIFY.docx
+
+# Temporary local installers
+ApplyP*.py
