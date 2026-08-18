@@ -55,15 +55,17 @@ def ranges_overlap(
 def protected_field_ranges(doc) -> list[tuple[int, int]]:
     """Extract protected Word field ranges without changing the document."""
     ranges: list[tuple[int, int]] = []
-    for field_index in range(1, doc.Fields.Count + 1):
-        try:
-            field = doc.Fields.Item(field_index)
-            if not is_protected_field_code(str(field.Code.Text)):
+    try:
+        for field in doc.Fields:
+            try:
+                if not is_protected_field_code(str(field.Code.Text)):
+                    continue
+                start = min(int(field.Code.Start), int(field.Result.Start))
+                end = max(int(field.Code.End), int(field.Result.End))
+            except Exception:
                 continue
-            start = min(int(field.Code.Start), int(field.Result.Start))
-            end = max(int(field.Code.End), int(field.Result.End))
-        except Exception:
-            continue
-        if end > start:
-            ranges.append((start, end))
+            if end > start:
+                ranges.append((start, end))
+    except Exception:
+        pass
     return ranges

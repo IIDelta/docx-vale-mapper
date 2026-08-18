@@ -11,16 +11,18 @@ from validators.fieldprotection import protected_field_ranges, ranges_overlap
 
 from word.reader import vale_text_with_offset
 
+from validators.valespan import resolve_match_offsets
+
 def resolve_comment_offset(raw_text: str, item: dict) -> int | None:
     """Resolve a planned comment target within one Word paragraph."""
     match_text = item.get("match", "")
     span = item.get("span")
     vale_text, leading_offset = vale_text_with_offset(raw_text)
 
-    if isinstance(span, list) and span:
-        vale_offset = int(span[0]) - 1
-        if vale_text[vale_offset : vale_offset + len(match_text)] == match_text:
-            return vale_offset + leading_offset
+    if span:
+        offsets = resolve_match_offsets(vale_text, match_text, span)
+        if offsets is not None:
+            return offsets[0] + leading_offset
 
     candidate = vale_text.find(match_text)
     return candidate + leading_offset if candidate >= 0 else None
@@ -88,13 +90,33 @@ def run_comment_preflight(
             try:
                 protected_ranges = protected_field_ranges(document)
 
-                for entry in plan.get("comment_plan", []):
+                comment_plan = plan.get("comment_plan", [])
+                required_indices = {int(entry["finding"]["ParagraphIndex"]) for entry in comment_plan}
+                
+                # Single pass COM extraction (O(N) instead of O(N^2))
+                paragraph_data = {}
+                if required_indices:
+                    max_idx = max(required_indices)
+                    for i, paragraph in enumerate(document.Paragraphs, start=1):
+                        if i in required_indices:
+                            paragraph_data[i] = {
+                                "start": paragraph.Range.Start,
+                                "text": paragraph.Range.Text
+                            }
+                        if i >= max_idx:
+                            break
+
+                for entry in comment_plan:
                     finding = entry["finding"]
 
                     try:
                         paragraph_index = int(finding["ParagraphIndex"])
-                        paragraph = document.Paragraphs.Item(paragraph_index)
-                        raw_text = paragraph.Range.Text
+                        p_data = paragraph_data.get(paragraph_index)
+                        if not p_data:
+                            raise ValueError("paragraph_not_found")
+                            
+                        raw_text = p_data["text"]
+                        paragraph_start = p_data["start"]
                         expected_text = finding.get("Context", {}).get("paragraph_text", "")
 
                         if clean_text(raw_text) != expected_text:
@@ -110,7 +132,7 @@ def run_comment_preflight(
                         if offset is None:
                             raise ValueError("match_occurrence_not_found")
 
-                        start = paragraph.Range.Start + offset
+                        start = paragraph_start + offset
                         end = start + len(match_text)
 
                         if ranges_overlap(start, end, protected_ranges):

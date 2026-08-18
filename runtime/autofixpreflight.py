@@ -8,22 +8,19 @@ from abbreviations.legacyimport import calculate_sha256
 from validators.abbreviationvalidator import clean_text
 from validators.fieldprotection import protected_field_ranges, ranges_overlap
 
-
 from word.reader import vale_text_with_offset
+from validators.valespan import resolve_match_offsets
 
 def resolve_preflight_offset(raw: str, item: dict) -> int | None:
     match_text = item["match"]
     span = item.get("span")
     vale_text, leading_offset = vale_text_with_offset(raw)
 
-    if isinstance(span, list) and span:
-        # Vale spans are 1-based inclusive. So [261, 263] for length 3.
-        # Python 0-based start index is span[0] - 1
-        vale_offset = int(span[0]) - 1
-        # Verify the match is actually at this offset in vale_text
-        if vale_text[vale_offset : vale_offset + len(match_text)] == match_text:
-            return vale_offset + leading_offset
-
+    if span:
+        offsets = resolve_match_offsets(vale_text, match_text, span)
+        if offsets is not None:
+            return offsets[0] + leading_offset
+            
     # Fallback to searching if span is missing or invalid
     occurrence_index = int(item.get("occurrence_index", 0))
     start = 0
@@ -35,6 +32,7 @@ def resolve_preflight_offset(raw: str, item: dict) -> int | None:
             start += len(match_text)
             
     return start + leading_offset
+
 def run_preflight(source_path: Path, plan_path: Path, manifest_path: Path, output_base: Path, doc: Any = None) -> Path:
     plan=json.loads(plan_path.read_text(encoding="utf-8"))
     manifest=json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -57,15 +55,38 @@ def run_preflight(source_path: Path, plan_path: Path, manifest_path: Path, outpu
         if doc is not None:
             try:
                 protected=protected_field_ranges(doc)
-                for item in plan.get("auto_fix_plan",[]):
+                
+                auto_fix_plan = plan.get("auto_fix_plan",[])
+                required_indices = {int(item["paragraph_index"]) for item in auto_fix_plan}
+                
+                # Single pass COM extraction (O(N) instead of O(N^2))
+                paragraph_data = {}
+                if required_indices:
+                    max_idx = max(required_indices)
+                    for i, paragraph in enumerate(doc.Paragraphs, start=1):
+                        if i in required_indices:
+                            paragraph_data[i] = {
+                                "start": paragraph.Range.Start,
+                                "text": paragraph.Range.Text
+                            }
+                        if i >= max_idx:
+                            break
+                            
+                for item in auto_fix_plan:
                     try:
-                        paragraph=doc.Paragraphs.Item(int(item["paragraph_index"]))
-                        raw=paragraph.Range.Text
+                        p_index = int(item["paragraph_index"])
+                        p_data = paragraph_data.get(p_index)
+                        if not p_data:
+                            raise ValueError("paragraph_not_found")
+                            
+                        raw = p_data["text"]
+                        paragraph_start = p_data["start"]
+                        
                         if clean_text(raw)!=item.get("paragraph_text",""):
                             raise ValueError("paragraph_text_mismatch")
                         offset = resolve_preflight_offset(raw, item)
                         if offset is None: raise ValueError("match_occurrence_not_found")
-                        start=paragraph.Range.Start+offset; end=start+len(item["match"])
+                        start=paragraph_start+offset; end=start+len(item["match"])
                         if ranges_overlap(start,end,protected): raise ValueError("protected_word_field")
 
                         # Verify text mismatch on actual raw string 
