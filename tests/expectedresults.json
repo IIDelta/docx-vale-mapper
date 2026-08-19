@@ -20,9 +20,10 @@
     }
   },
   "a3inclusivelanguage.md": {
-    "expected_total": 25,
+    "expected_total": 27,
     "expected_checks": {
       "Clinical.AppendixCReview": 1,
+      "Clinical.ForwardSlashReview": 2,
       "Clinical.PersonFirstLanguage": 8,
       "Clinical.InclusiveLanguageReview": 9,
       "Clinical.SexIdentityReview": 6,
