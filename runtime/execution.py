@@ -109,8 +109,8 @@ def execute_operational_audit(
             comment_text = f"Automatically applied {count} verified {rule} fix(es) throughout this document. See autofix execution JSON for all locations."
             comment = doc.Comments.Add(Range=summary_range, Text=comment_text)
             try:
-                comment.Author = "MVA"
-                comment.Initial = "MVA"
+                comment.Author = "Takeda Style Guide"
+                comment.Initial = "TSG"
             except Exception:
                 pass
             
@@ -148,22 +148,13 @@ def execute_operational_audit(
         for item in verified_comments:
             comments_by_rule[item["rule_id"]].append(item)
             
+        inserted_signatures = set()
+
         for rule_id, items in comments_by_rule.items():
-            # Filter report-only/disabled based on policy? Wait, if they are in commentpreflight, they are disposition "comment".
-            # The comment preflight only processes `plan.get("comment_plan", [])`.
-            # So report-only and disabled are already excluded.
-            
-            # The comment_plan might already contain 'aggregated' logic but we must follow:
-            # "If occurrence count is 1-4, insert comments at all verified eligible locations.
-            # If occurrence count is 5 or more, insert one comment at the first verified eligible body-narrative location."
-            
-            # Re-evaluating the rule from verified entries:
             # Sort by range_start ascending
             items = sorted(items, key=lambda x: x["verified_range_start"])
             
             count = len(items)
-            # Actually, the original comment_plan may have fewer items if it aggregated them already!
-            # Let's check the original occurrence count from the plan
             orig_occurrence_count = items[0].get("occurrence_count", count)
             
             if orig_occurrence_count >= 5:
@@ -174,49 +165,62 @@ def execute_operational_audit(
                         selected = item
                         break
                 if not selected:
-                    # fallback to first if no body narrative?
                     selected = items[0]
                     
                 start = selected["verified_range_start"]
                 end = selected["verified_range_end"]
-                rng = doc.Range(start, end)
                 
                 finding = selected.get("finding", {})
                 severity = finding.get("Severity", "suggestion").upper()
                 match_text = finding.get("Match", "")
                 message = finding.get("Message", "")
                 
-                comment_text = f"[{orig_occurrence_count} occurrences] {rule_id} {severity} -> '{match_text}': {message}"
-                
-                try:
-                    comment = doc.Comments.Add(Range=rng, Text=comment_text)
+                signature = f"{start}-{end}-{rule_id}"
+                if signature not in inserted_signatures:
+                    inserted_signatures.add(signature)
+                    rng = doc.Range(start, end)
+                    if rng.Text.strip() != match_text.strip():
+                        rng.Expand(4) # Fallback to wdParagraph
+                    
+                    comment_text = f"[{orig_occurrence_count} occurrences] {rule_id} {severity} -> '{match_text}': {message}"
+                    
                     try:
-                        comment.Author = "MVA"
-                        comment.Initial = "MVA"
-                    except Exception: pass
-                    com_inserted.append(selected)
-                    aggregated_comment_count += 1
-                except Exception as e:
-                    com_skipped.append({"item": selected, "reason": str(e)})
-                    skipped_reasons["word_insertion_error"] += 1
+                        comment = doc.Comments.Add(Range=rng, Text=comment_text)
+                        try:
+                            comment.Author = "Takeda Style Guide"
+                            comment.Initial = "TSG"
+                        except Exception: pass
+                        com_inserted.append(selected)
+                        aggregated_comment_count += 1
+                    except Exception as e:
+                        com_skipped.append({"item": selected, "reason": str(e)})
+                        skipped_reasons["word_insertion_error"] += 1
             else:
                 for item in items:
                     start = item["verified_range_start"]
                     end = item["verified_range_end"]
-                    rng = doc.Range(start, end)
                     
                     finding = item.get("finding", {})
                     severity = finding.get("Severity", "suggestion").upper()
                     match_text = finding.get("Match", "")
                     message = finding.get("Message", "")
                     
+                    signature = f"{start}-{end}-{rule_id}"
+                    if signature in inserted_signatures:
+                        continue
+                    inserted_signatures.add(signature)
+                    
+                    rng = doc.Range(start, end)
+                    if rng.Text.strip() != match_text.strip():
+                        rng.Expand(4) # Fallback to wdParagraph
+                    
                     comment_text = f"{rule_id} {severity} -> '{match_text}': {message}"
                     
                     try:
                         comment = doc.Comments.Add(Range=rng, Text=comment_text)
                         try:
-                            comment.Author = "MVA"
-                            comment.Initial = "MVA"
+                            comment.Author = "Takeda Style Guide"
+                            comment.Initial = "TSG"
                         except Exception: pass
                         com_inserted.append(item)
                         inserted_comment_count += 1
@@ -264,7 +268,7 @@ def execute_operational_audit(
             try:
                 doc_val = word_val.Documents.Open(str(output_path.resolve()), ReadOnly=True)
                 for c in doc_val.Comments:
-                    if c.Author == "MVA" or c.Initial == "MVA":
+                    if c.Author == "Takeda Style Guide" or c.Initial == "TSG":
                         mva_comment_count += 1
             except Exception as e:
                 validation_result = f"failed_to_open: {str(e)}"

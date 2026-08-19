@@ -57,6 +57,9 @@
 | `Clinical.FootnoteSymbolDesignator` | Various | comment | warning | Full | Added via mass promotion |
 | `Clinical.ForwardSlashReview` | 5.0 | comment | warning | Full | Slashes require context review |
 | `Clinical.GenericReferenceCase` | 4.0 | comment | warning | Full | Generic references should be lowercase |
+| `Clinical.HeadingAllCapsTyped` | Various | comment | warning | Full | Structural title case validation |
+| `Clinical.HeadingMinorWordCase` | Various | comment | warning | Full | Structural minor word case validation |
+| `Clinical.HeadingTitleCase` | Various | comment | warning | Full | Structural title case validation |
 | `Clinical.InclusiveLanguageReview` | 3.0 | comment | warning | Full | Inclusive language guidelines |
 | `Clinical.ItalicRequired` | Various | comment | warning | Full | Added via mass promotion |
 | `Clinical.LabelCapitalization` | 4.0 | comment | warning | Full | Labels followed by numbers |
@@ -68,7 +71,7 @@
 | `Clinical.MultiplePunctuationSpaces` | 5.0 | auto_fix | error | Full | Ensures no double spaces between sentences |
 | `Clinical.NumberGrouping` | 7.0 | comment | warning | Full | Large numbers should use commas |
 | `Clinical.NumeralApostrophes` | 5.0 | comment | warning | Full | No apostrophes for decades |
-| `Clinical.NumeralAtSentenceStart` | 7.0 | comment | warning | Full | Sentences should not start with numbers |
+| `Clinical.NumeralAtSentenceStart` | 7.0 | disabled | warning | Full | Sentences should not start with numbers |
 | `Clinical.NumericRatioFormat` | 7.0 | comment | warning | Full | Ratios should use colon |
 | `Clinical.PValueFormat` | 7.0 | comment | warning | Full | p-values should be italicized |
 | `Clinical.Participant` | 3.0 | comment | error | Full | 'Participant' instead of 'Subject' |

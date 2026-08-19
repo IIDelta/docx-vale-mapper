@@ -52,6 +52,9 @@
     "Clinical.FootnoteSymbolDesignator",
     "Clinical.ForwardSlashReview",
     "Clinical.GenericReferenceCase",
+    "Clinical.HeadingAllCapsTyped",
+    "Clinical.HeadingMinorWordCase",
+    "Clinical.HeadingTitleCase",
     "Clinical.InclusiveLanguageReview",
     "Clinical.ItalicRequired",
     "Clinical.LabelCapitalization",
@@ -61,7 +64,6 @@
     "Clinical.ListItemEndPunctuation",
     "Clinical.NumberGrouping",
     "Clinical.NumeralApostrophes",
-    "Clinical.NumeralAtSentenceStart",
     "Clinical.NumericRatioFormat",
     "Clinical.PValueFormat",
     "Clinical.Participant",
@@ -95,5 +97,7 @@
     "Clinical.TrialNumber"
   ],
   "report_only_rules": [],
-  "disabled_rules": []
+  "disabled_rules": [
+    "Clinical.NumeralAtSentenceStart"
+  ]
 }

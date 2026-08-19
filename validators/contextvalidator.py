@@ -176,13 +176,13 @@ def classify_content_zone(
     if CAPTION_PATTERN.match(text.strip()):
         return "caption"
 
+    if reference_active:
+        return "reference"
+
     if is_in_table:
         return "table_cell"
 
     if list_marker.strip():
         return "list_item"
-
-    if reference_active:
-        return "reference"
 
     return "body_narrative"

@@ -12,5 +12,5 @@ tokens:
   - '\bhis/her\b'
   - '\bhim/her\b'
   - '\bs/he\b'
-  - '\bthe male\b(?!\s+participant\b)'
-  - '\bthe female\b(?!\s+participant\b)'
+  - '\bthe male\b(?!\s+(?:participant|partner|patient|subject)\b)'
+  - '\bthe female\b(?!\s+(?:participant|partner|patient|subject)\b)'
