@@ -1,0 +1,6 @@
+extends: existence
+message: "Style guide punctuation format: Place commas and periods inside closing quotation marks."
+level: warning
+nonword: true
+tokens:
+  - '["''”“’][.,]'

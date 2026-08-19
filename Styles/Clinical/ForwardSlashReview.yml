@@ -2,8 +2,17 @@
 # Do not use a forward slash to represent alternatives such as and/or.
 
 extends: existence
-message: "Style guide punctuation review: Avoid 'and/or'. Rewrite the phrase using clear wording."
+message: "Style guide punctuation review: Avoid using a forward slash to represent alternatives (e.g., '%s'). Rewrite the phrase using clear wording."
 level: warning
 nonword: true
+ignorecase: true
 tokens:
   - '\band/or\b'
+  - '\bhe/she\b'
+  - '\bhim/her\b'
+  - '\bhis/hers\b'
+  - '\bmen/women\b'
+  - '\bmale/female\b'
+  - '\byes/no\b'
+  - '\btrue/false\b'
+  - '\bwith/without\b'
