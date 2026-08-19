@@ -1,7 +1,24 @@
 from __future__ import annotations
 import pythoncom
 import win32com.client
-from typing import Any
+import time
+from typing import Any, Callable, TypeVar
+
+T = TypeVar('T')
+
+def with_com_retry(func: Callable[..., T], retries: int = 5, delay: float = 0.5) -> T:
+    """
+    Executes a COM interaction with a retry loop to handle RPC_E_CALL_REJECTED.
+    """
+    for attempt in range(retries):
+        try:
+            return func()
+        except Exception as e:
+            if "rejected by callee" in str(e) or "-2147418111" in str(e):
+                if attempt < retries - 1:
+                    time.sleep(delay)
+                    continue
+            raise
 
 class WordAppSession:
     """
@@ -41,7 +58,7 @@ class WordAppSession:
                 pass
                 
             try:
-                self.word.Quit()
+                with_com_retry(lambda: self.word.Quit(), retries=5, delay=1.0)
             except Exception as e:
                 print(f"Word application cleanup warning: {e}")
                 

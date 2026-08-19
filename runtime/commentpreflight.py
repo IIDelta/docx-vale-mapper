@@ -88,23 +88,27 @@ def run_comment_preflight(
 
         if document is not None:
             try:
-                protected_ranges = protected_field_ranges(document)
+                from word.lifecycle import with_com_retry
+                protected_ranges = with_com_retry(lambda: protected_field_ranges(document), retries=5, delay=1.0)
 
                 comment_plan = plan.get("comment_plan", [])
                 required_indices = {int(entry["finding"]["ParagraphIndex"]) for entry in comment_plan}
                 
-                # Single pass COM extraction (O(N) instead of O(N^2))
-                paragraph_data = {}
-                if required_indices:
-                    max_idx = max(required_indices)
-                    for i, paragraph in enumerate(document.Paragraphs, start=1):
-                        if i in required_indices:
-                            paragraph_data[i] = {
-                                "start": paragraph.Range.Start,
-                                "text": paragraph.Range.Text
-                            }
-                        if i >= max_idx:
-                            break
+                def extract_paragraphs():
+                    paragraph_data = {}
+                    if required_indices:
+                        max_idx = max(required_indices)
+                        for i, paragraph in enumerate(document.Paragraphs, start=1):
+                            if i in required_indices:
+                                paragraph_data[i] = {
+                                    "start": paragraph.Range.Start,
+                                    "text": paragraph.Range.Text
+                                }
+                            if i >= max_idx:
+                                break
+                    return paragraph_data
+                    
+                paragraph_data = with_com_retry(extract_paragraphs, retries=5, delay=1.0)
 
                 for entry in comment_plan:
                     finding = entry["finding"]

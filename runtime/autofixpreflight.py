@@ -54,23 +54,27 @@ def run_preflight(source_path: Path, plan_path: Path, manifest_path: Path, outpu
         
         if doc is not None:
             try:
-                protected=protected_field_ranges(doc)
+                from word.lifecycle import with_com_retry
+                protected=with_com_retry(lambda: protected_field_ranges(doc), retries=5, delay=1.0)
                 
                 auto_fix_plan = plan.get("auto_fix_plan",[])
                 required_indices = {int(item["paragraph_index"]) for item in auto_fix_plan}
                 
-                # Single pass COM extraction (O(N) instead of O(N^2))
-                paragraph_data = {}
-                if required_indices:
-                    max_idx = max(required_indices)
-                    for i, paragraph in enumerate(doc.Paragraphs, start=1):
-                        if i in required_indices:
-                            paragraph_data[i] = {
-                                "start": paragraph.Range.Start,
-                                "text": paragraph.Range.Text
-                            }
-                        if i >= max_idx:
-                            break
+                def extract_paragraphs():
+                    paragraph_data = {}
+                    if required_indices:
+                        max_idx = max(required_indices)
+                        for i, paragraph in enumerate(doc.Paragraphs, start=1):
+                            if i in required_indices:
+                                paragraph_data[i] = {
+                                    "start": paragraph.Range.Start,
+                                    "text": paragraph.Range.Text
+                                }
+                            if i >= max_idx:
+                                break
+                    return paragraph_data
+                
+                paragraph_data = with_com_retry(extract_paragraphs, retries=5, delay=1.0)
                             
                 for item in auto_fix_plan:
                     try:

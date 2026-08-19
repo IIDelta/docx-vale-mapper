@@ -997,7 +997,8 @@ def add_structural_findings(
         """Run one validator without disabling the full audit."""
 
         try:
-            result = callback()
+            from word.lifecycle import with_com_retry
+            result = with_com_retry(callback, retries=5, delay=1.0)
 
             return result or []
 
